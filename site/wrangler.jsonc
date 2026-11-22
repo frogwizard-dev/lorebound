@@ -1,6 +1,7 @@
 {
-  // Cloudflare Pages project for lb.frogwizard.net: a static page (public/) and one function
-  // (functions/api/report.js). The GitHub token is a secret set in the Pages project, not here.
+  // Cloudflare Pages project for lb.frogwizard.net: the static site (public/) and two functions
+  // (functions/api/report.js, progress.js). The GitHub token is a secret set in the Pages project, not here.
+  // The project and database keep their names from before Loremaster became Lorebound.
   "name": "loremaster-report",
   "pages_build_output_dir": "public",
   "compatibility_date": "2026-11-01",

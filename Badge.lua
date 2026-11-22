@@ -12,6 +12,7 @@ ns.Badge = Badge
 
 local MEDIA = ns.MEDIA
 local ICONS = "Interface\\Icons\\"
+local SEAL_ICON = "INV_Misc_Book_09"
 
 -- By group (make_lore.py's GROUPS): the badge's shape, and its word.
 local SHAPES = { "Medal", "Medal", "Shield", "Crest", "Hex", "Hex", "Shield", "Medal" }
@@ -30,10 +31,15 @@ local GROUP_PAINTINGS = {
 local CLASS_ART = { WARRIOR = 136983, PALADIN = 136918, HUNTER = 136890, ROGUE = 136942, PRIEST = 136930,
     SHAMAN = 136950, MAGE = 136902, WARLOCK = 136967, DRUID = 136878 } -- talentframe/<tree>-topleft
 
+local classPainting -- made once: DrawArt keeps a painting while it's the same table
+
 function Badge.GroupPainting(group)
     if group == 5 then
-        local _, class = UnitClass("player")
-        return CLASS_ART[class] and { CLASS_ART[class], 256, 256, 0, 256 }
+        if classPainting == nil then
+            local _, class = UnitClass("player")
+            classPainting = CLASS_ART[class] and { CLASS_ART[class], 256, 256, 0, 256 } or false
+        end
+        return classPainting or nil
     end
     return GROUP_PAINTINGS[group]
 end
@@ -76,7 +82,7 @@ local JOURNAL_W, JOURNAL_H, JOURNAL_FILE = 394, 425, 512
 -- A painting filling holder (w x h), cropped to fit: a journal file ID, or a Forever dungeon's loading
 -- screen packaged with Lorebound_Data: { texture, file width and height, the painting's top row and height }
 -- (make_lore.py's packaged_screen).
-local function DrawJournal(holder, painting, w, h)
+local function DrawJournal(holder, painting, width, height)
     local file, usedW, usedH, fileW, fileH, top = painting, JOURNAL_W, JOURNAL_H, JOURNAL_FILE, JOURNAL_FILE, 0
     if type(painting) == "table" then
         file, fileW, fileH, top, usedH = painting[1], painting[2], painting[3], painting[4], painting[5]
@@ -90,12 +96,12 @@ local function DrawJournal(holder, painting, w, h)
         holder.journal = art
     end
     local u0, u1, v0, v1 = 0, usedW, 0, usedH
-    if w / h > usedW / usedH then
-        local shown = usedW * h / w -- wider than the painting: a band across its middle
+    if width / height > usedW / usedH then
+        local shown = usedW * height / width -- wider than the painting: a band across its middle
         v0 = (usedH - shown) / 2
         v1 = v0 + shown
     else
-        local shown = usedH * w / h
+        local shown = usedH * width / height
         u0 = (usedW - shown) / 2
         u1 = u0 + shown
     end
@@ -109,8 +115,8 @@ end
 -- you've explored; Lorebound_Data's reveal table has them all). Tiles take holder.mask if it has one.
 -- Returns the map's drawn size and offset, for pins; nil when the zone has no map art. journal: a
 -- dungeon's or raid's painting to show instead of its map. Drawn again only when something changes.
-function ns.DrawArt(holder, uiMap, w, h, cover, journal)
-    local key = ("%s:%d:%d:%s:%s"):format(tostring(uiMap), math.floor(w), math.floor(h), tostring(cover),
+function ns.DrawArt(holder, uiMap, width, height, cover, journal)
+    local key = ("%s:%d:%d:%s:%s"):format(tostring(uiMap), math.floor(width), math.floor(height), tostring(cover),
         tostring(journal))
     if holder.key == key then return unpack(holder.drawn) end
     holder.key, holder.drawn = key, {}
@@ -120,7 +126,7 @@ function ns.DrawArt(holder, uiMap, w, h, cover, journal)
     for _, tile in ipairs(holder.overlays) do tile:Hide() end
     if holder.journal then holder.journal:Hide() end
     if journal then
-        DrawJournal(holder, journal, w, h)
+        DrawJournal(holder, journal, width, height)
         return nil
     end
     if not uiMap then return nil end
@@ -129,9 +135,9 @@ function ns.DrawArt(holder, uiMap, w, h, cover, journal)
     local files = layer and C_Map.GetMapArtLayerTextures(uiMap, 1)
     if not files or #files == 0 or not layer.layerWidth or layer.layerWidth == 0 then return nil end
     local lw, lh, tw, th = layer.layerWidth, layer.layerHeight, layer.tileWidth, layer.tileHeight
-    local scale = cover and math.max(w / lw, h / lh) or math.min(w / lw, h / lh)
+    local scale = cover and math.max(width / lw, height / lh) or math.min(width / lw, height / lh)
     local mw, mh = lw * scale, lh * scale
-    local ox, oy = (w - mw) / 2, (h - mh) / 2
+    local ox, oy = (width - mw) / 2, (height - mh) / 2
     local cols = math.ceil(lw / tw)
     for i, file in ipairs(files) do
         local tile = Tile(holder, "tiles", i, -6)
@@ -141,7 +147,7 @@ function ns.DrawArt(holder, uiMap, w, h, cover, journal)
         local v = math.min(1, (lh - row * th) / th)
         local left, top = ox + col * tw * scale, oy + row * th * scale
         -- Only tiles that land in the frame (a strip of a map uses a few of its twelve).
-        if u > 0 and v > 0 and left < w and top < h and left + tw * u * scale > 0 and top + th * v * scale > 0 then
+        if u > 0 and v > 0 and left < width and top < height and left + tw * u * scale > 0 and top + th * v * scale > 0 then
             tile:SetTexture(file, nil, nil, "TRILINEAR")
             tile:SetTexCoord(0, u, 0, v)
             tile:SetSize(tw * u * scale, th * v * scale)
@@ -157,15 +163,15 @@ function ns.DrawArt(holder, uiMap, w, h, cover, journal)
     for _, overlay in ipairs(art and reveal[art] or {}) do
         local ow, oh, x, y = overlay[1], overlay[2], overlay[3], overlay[4]
         local cols, rows = math.ceil(ow / tw), math.ceil(oh / th)
-        for r = 1, rows do
-            local ph = r < rows and th or oh - th * (rows - 1)
-            local fh = r < rows and th or Pow2(ph)
-            for c = 1, cols do
-                local pw = c < cols and tw or ow - tw * (cols - 1)
-                local fw = c < cols and tw or Pow2(pw)
-                local left, top = ox + (x + tw * (c - 1)) * scale, oy + (y + th * (r - 1)) * scale
-                local file = overlay[4 + (r - 1) * cols + c]
-                if file and left < w and top < h and left + pw * scale > 0 and top + ph * scale > 0 then
+        for tileRow = 1, rows do
+            local ph = tileRow < rows and th or oh - th * (rows - 1)
+            local fh = tileRow < rows and th or Pow2(ph)
+            for tileCol = 1, cols do
+                local pw = tileCol < cols and tw or ow - tw * (cols - 1)
+                local fw = tileCol < cols and tw or Pow2(pw)
+                local left, top = ox + (x + tw * (tileCol - 1)) * scale, oy + (y + th * (tileRow - 1)) * scale
+                local file = overlay[4 + (tileRow - 1) * cols + tileCol]
+                if file and left < width and top < height and left + pw * scale > 0 and top + ph * scale > 0 then
                     used = used + 1
                     local tile = Tile(holder, "overlays", used, -5)
                     tile:SetTexture(file, nil, nil, "TRILINEAR")
@@ -244,16 +250,16 @@ function Badge.Stats(kind, value)
     if kind == "zone" then
         zones[1] = value
     else
-        for zone, z in ipairs(Lore.Zones()) do
-            if (kind == "group" and z[2] == value) or (kind == "seal" and Lore.IN_TOTAL[z[2]]) then
+        for zone, entry in ipairs(Lore.Zones()) do
+            if (kind == "group" and entry[2] == value) or (kind == "seal" and Lore.IN_TOTAL[entry[2]]) then
                 zones[#zones + 1] = zone
             end
         end
     end
     local done, total, locked, first, last = 0, 0, 0, nil, nil
     for _, zone in ipairs(zones) do
-        local d, t, l = Lore.Count(zone)
-        done, total, locked = done + d, total + t, locked + l
+        local zoneDone, zoneTotal, zoneLocked = Lore.Count(zone)
+        done, total, locked = done + zoneDone, total + zoneTotal, locked + zoneLocked
         for _, id in ipairs(Lore.ZoneQuests(zone)) do
             local at = turned[id]
             if at then
@@ -318,13 +324,13 @@ function Widget:Set(kind, value)
     elseif kind == "group" then
         uiMap = Badge.GROUP_MAPS[value]
     else
-        icon = "INV_Misc_Book_09"
+        icon = SEAL_ICON
     end
     SetShape(self, shape)
     if icon or not (uiMap or journal) then
         self.window:SetSize(size, size)
         ns.DrawArt(self.window, nil, size, size)
-        self.icon:SetTexture(ICONS .. (icon or "INV_Misc_Book_09"))
+        self.icon:SetTexture(ICONS .. (icon or SEAL_ICON))
         self.icon:Show()
     else
         self.icon:Hide()
@@ -451,7 +457,7 @@ local function Tilted(badge)
     return art, rim
 end
 
-local function Clamp(v) return math.max(-1, math.min(1, v)) end
+local function Clamp(value) return math.max(-1, math.min(1, value)) end
 
 -- The spin: dragged, coasting, or settling on facing you (or on a click's whole turn).
 local function Spin(badge, elapsed, cursorX)
@@ -497,15 +503,15 @@ local function Lean(badge, elapsed)
     if not cx then return end
     local half = badge:GetWidth() / 2
     local scale = badge:GetEffectiveScale()
-    local mx, my = GetCursorPosition()
-    mx, my = mx / scale - cx, my / scale - cy
-    Spin(badge, elapsed, mx)
+    local cursorX, cursorY = GetCursorPosition()
+    cursorX, cursorY = cursorX / scale - cx, cursorY / scale - cy
+    Spin(badge, elapsed, cursorX)
     local wantX, wantY = 0, 0
-    local near = not ns.GamepadUI() and badge.leanArea:IsMouseOver() and (mx * mx + my * my) < (half * NEAR) ^ 2
-    if near and not badge.dragging then wantX, wantY = Clamp(mx / half), Clamp(my / half) end
-    local k = math.min(1, elapsed * FOLLOW)
-    badge.leanX = badge.leanX + (wantX - badge.leanX) * k
-    badge.leanY = badge.leanY + (wantY - badge.leanY) * k
+    local near = not ns.GamepadUI() and badge.leanArea:IsMouseOver() and (cursorX * cursorX + cursorY * cursorY) < (half * NEAR) ^ 2
+    if near and not badge.dragging then wantX, wantY = Clamp(cursorX / half), Clamp(cursorY / half) end
+    local follow = math.min(1, elapsed * FOLLOW)
+    badge.leanX = badge.leanX + (wantX - badge.leanX) * follow
+    badge.leanY = badge.leanY + (wantY - badge.leanY) * follow
 
     -- Still: nothing to draw again once it has been drawn flat.
     local resting = badge.spin == 0 and not badge.dragging and math.abs(badge.leanX) < 0.002 and math.abs(badge.leanY) < 0.002

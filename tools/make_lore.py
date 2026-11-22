@@ -1,65 +1,75 @@
-"""Writes Lorebound_Data/Data.lua: every quest on WoW Forever that Lorebound counts, with its zone,
-levels, who may take it, what it needs first, what shuts it off and where its quest giver stands.
+"""Builds Lorebound's quest list: Lorebound_Data/Data.lua (every quest on WoW Forever that Lorebound counts, with
+its zone, levels, who may take it, what it needs first, what shuts it off and where its quest giver stands),
+the quest pages' text (lore_pages.py; Lorebound_Text, Lorebound_Text_EasternKingdoms and Lorebound_Text_Kalimdor) and
+the site's copy (site/public/data).
 
-    python make_lore.py                  # from _tools; reads the game and two quest addons in its AddOns folder
-    python make_lore.py --pull           # first saves the open quest-report issues into lore_reports (gh)
+    python make_lore.py                  # in tools/
+    python make_lore.py --pull           # first saves the open quest reports you've approved into lore_reports (gh)
     python make_lore.py --pull --close   # and closes those issues afterwards, with a thank-you
+    python make_lore.py --close-pulled   # only closes the issues lore_reports/issue-<n>.txt came from (the weekly
+                                         # update runs it once the build is committed)
     python make_lore.py --trust          # takes reported quests without checking them online
 
-Sources (Lorebound is personal and never released):
+Sources (the addons' files are copied into sources/ by refresh_sources.py; the weekly update builds from those):
 - Zquest's Data folder (an export of QuestieDB's Forever database, GPL-3.0): quests with their chains,
   breadcrumbs and exclusive groups, the Horde view's differences, and the NPCs, objects and items
   that start and end them (names and spawn points, with Zquest's zone-to-map table).
 - Quest Completist's Forever data: quests the first hasn't got (name, level, zone, faction, classes,
   one prerequisite, minimum level). Its holiday and profession quests are left out.
-- Questie's quest blacklist (Questie only has to be in the AddOns folder too): quests it hides on
-  Forever ("Welcome!" in each starting zone, duplicates, flags), which Zquest leaves out and Quest
-  Completist doesn't.
-- ForeverDungeonJournal's dungeon list (Data/Dungeons.lua; only has to be in the AddOns folder): which
-  quests belong to which dungeon (each wing's quests on its dungeon's page), and the dungeon quests the
-  others haven't got (Forever's new dungeons). Without it, a quest moves to a dungeon when what it's
-  about is inside one (Zquest's rule, stricter).
+- Questie's quest blacklist: quests it hides on Forever ("Welcome!" in each starting zone, duplicates,
+  flags), which Zquest leaves out and Quest Completist doesn't.
+- ForeverDungeonJournal's dungeon list: which quests belong to which dungeon (each wing's quests on its
+  dungeon's page), and the dungeon quests the others haven't got (Forever's new dungeons). Without it, a
+  quest moves to a dungeon when what it's about is inside one (Zquest's rule, stricter).
 - Players' reports (lore_reports/*.txt): the codes Lorebound's "Share new quests" box makes, for
   quests none of the above has. Each LM1 line adds its quest (name, zone, level, sides that met it,
   quest giver and where, who takes it in); "before" (the quest turned in just before at the same giver)
   is a hint for a person, not a prerequisite. A reported quest is only taken when its ID is in the
   game's own quest list and its name matches Wowhead's (Forever section, through the tooltip endpoint
   its embed script uses; answers cached in lore_reports/.verified.json); the rest go to
-  lore_reports/needs-a-look.txt with the reason.
-- The dungeon journal's art in the game files (interface/encounterjournal/ui-ej-background-*, named in
-  the community listfile): each dungeon's and raid's painting, for its badge, row and page.
-- The game's WorldMapOverlay tables: every explorable sub-zone's painted overlay, so the journal shows
-  each zone's map fully revealed (the game only paints the parts you've explored).
-- The game's own tables: QuestV2 (the quest IDs Forever has; anything missing from it is left out),
-  AreaTable (zone names in Forever's spelling, continent, parent zone) and Map.csv from wago_classic
-  (which instance maps are dungeons and which raids).
-Both addons only have to be in the AddOns folder, not enabled. Re-run after either updates.
+  lore_reports/needs-a-look.txt with the reason. LT1 lines carry a quest's Forever text as players read
+  it (lore_pages.py puts it on the quest's page where Classic's text doesn't apply).
+- The game's files (game_files.py: this PC's client, else wago.tools's copy of Forever's newest build):
+  the dungeon journal's art (interface/encounterjournal/ui-ej-background-*, named in the listfile) for each
+  dungeon's and raid's badge, row and page; the WorldMapOverlay tables, so the journal shows each zone's map
+  fully revealed; QuestV2 (the quest IDs Forever has; anything missing from it is left out) and AreaTable
+  (zone names in Forever's spelling, continent, parent zone). Map.csv from wago_classic says which instance
+  maps are dungeons and which raids.
 
 Also left out: repeatable quests, quests needing a world event, seasonal categories (holidays, the
 Darkmoon Faire, invasions) and unused ones, because none of those is something you finish once.
 """
 import csv
+import hashlib
+import io
+import json
 import os
+import re
+import struct
+import subprocess
 import sys
+import time
 import urllib.request
 
 import lupa
+import numpy as np
 from PIL import Image
 
-from game_files import GameFiles
 import db2
+import lore_pages
+from game_files import AGENT, GameFiles, wago_csv
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # The quest addons' data, copied into the repository (refresh_sources.py copies them from the AddOns folder).
-ADDON_SOURCES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "sources")
+ADDON_SOURCES = os.path.join(HERE, "..", "sources")
 ZQUEST = os.path.join(ADDON_SOURCES, "Zquest", "Data")
 COMPLETIST = os.path.join(ADDON_SOURCES, "QuestCompletist", "qcQuestData.lua")
 BLACKLIST = os.path.join(ADDON_SOURCES, "Questie", "QuestieQuestBlacklist.lua")
 JOURNAL = os.path.join(ADDON_SOURCES, "ForeverDungeonJournal", "Dungeons.lua")
-REPORTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lore_reports")
-REPORT_REPO = "frogwizard-dev/loremaster-reports"  # where lb.frogwizard.net files reports (loremaster-report/)
+REPORTS = os.path.join(HERE, "lore_reports")
+REPORT_REPO = "frogwizard-dev/loremaster-reports"  # where lb.frogwizard.net files reports (site/)
+APPROVED = "approved"  # the label you add to a report issue once you've read it and it's right
 OUT = os.path.join(HERE, "..", "Lorebound_Data", "Data.lua")
-TEXT_OUT = os.path.join(HERE, "..", "Lorebound_Text", "Text.lua")  # the journal's quest pages (write_text)
 NEWLINE, BLANK_LINE = chr(10), chr(10) * 2
 SITE_DATA = os.path.join(HERE, "..", "site", "public", "data")  # the site's copy (lb.frogwizard.net)
 
@@ -73,9 +83,9 @@ PRE_GROUP, PRE_SINGLE, EXCLUSIVE, ZONE_OR_SORT, REQ_SKILL, MIN_REP, MAX_REP = 12
 NEXT_IN_CHAIN, SPECIAL_FLAGS, PARENT, BREADCRUMB_FOR = 22, 24, 25, 27
 REQ_MAX_LEVEL, UNTIL_COMPLETED = 32, 33
 REPEATABLE = 1  # specialFlags bit 2 is exploration or a scripted objective, not an event: kept
-NPC_NAME, NPC_SPAWNS, NPC_FRIENDLY = 1, 7, 13
-ITEM_NPC_DROPS, ITEM_OBJECT_DROPS = 2, 3
-OBJECT_NAME, OBJECT_SPAWNS = 1, 4
+NPC_NAME, NPC_SPAWNS, NPC_ZONE, NPC_FRIENDLY = 1, 7, 9, 13
+ITEM_NPC_DROPS, ITEM_OBJECT_DROPS, ITEM_VENDORS = 2, 3, 14
+OBJECT_NAME, OBJECT_SPAWNS, OBJECT_ZONE = 1, 4, 5
 
 # QuestSort IDs (stored negated), named by Forever's own QuestSort table.
 SEASONAL = {22, 364, 365, 366, 368, 369}  # Seasonal, Darkmoon Faire, AQ war, Lunar Festival, Invasion, Midsummer
@@ -90,12 +100,12 @@ OTHER_SORTS = {1: "Epic", 221: "Treasure Maps", 284: "Special", 344: "Legendary"
                641: "Nightmare Incursions", 644: "Blackrock Eruption", 660: "The High Order",
                676: "Night Elf"}
 
-# Professions and PvP aren't in the Lorebound total (Core.lua's IN_TOTAL), so they hold what one
-# character can't finish: a quest per profession or per craftable item.
 # The capitals by map, and whose they are (1 Alliance, 2 Horde): the other side's guards attack on sight.
 CAPITALS = {1453: 1, 1455: 1, 1457: 1, 1454: 2, 1456: 2, 1458: 2}
 GROUPS = ["Eastern Kingdoms", "Kalimdor", "Dungeons", "Raids", "Class", "Professions", "PvP", "Other"]
 EK, KALIMDOR, DUNGEONS, RAIDS, CLASS, PROFESSIONS, PVP, OTHER = range(1, 9)
+# Professions and PvP aren't in the Lorebound total (Core.lua's IN_TOTAL), so they hold what one
+# character can't finish: a quest per profession or per craftable item.
 PROFESSION_SORTS[666] = "Camping"                                   # Camping 101: one per profession
 RENAMED = {"Crafting": ("Craftsman's Writs", PROFESSIONS)}          # one writ per craftable item
 
@@ -217,14 +227,10 @@ class Zones:
         return self.index[key]
 
 
-LISTFILE = os.path.join(HERE, "listfile", "community-listfile.csv")
 EJ_PREFIX = "interface/encounterjournal/ui-ej-background-"
 # Where the journal's name differs from the zone's; a zone outside Dungeons and Raids listed here gets its painting
 # too (Blackrock Mountain has no map of its own).
 EJ_NAMES = {"Ahn'Qiraj": "templeofahnqiraj", "Blackrock Mountain": "blackrockdepths"}
-SOURCES = os.path.join(HERE, "lore_sources")  # downloaded sources (wago.tools tables and files, CMaNGOS, Wowhead)
-WAGO_CSV = "https://wago.tools/db2/%s/csv?product=wowf"
-WAGO_FILE = "https://wago.tools/api/casc/%d?download"
 SCREEN_DIR = os.path.join(HERE, "..", "Lorebound_Data", "Media")  # Forever dungeons' paintings, packaged
 SCREEN_PATH = r"Interface\AddOns\Lorebound_Data\Media\Screen%d"
 SCREEN_SIZE = (512, 256)
@@ -236,30 +242,8 @@ ZONE_ART = {name: [fid, 256, 256, 0, 256, fid] for name, fid in TALENT_ART.items
 ZONE_ART["Deeprun Tram"] = [131834, 683, 512, 0, 512, 131834]  # glues/loadingscreens/loadscreendeepruntram
 
 
-def wago_csv(table):
-    """Forever's table from wago.tools as CSV rows (cached in lore_sources for a day): the client's own data,
-    also for tables our DB2 reader can't parse."""
-    import time
-    path = os.path.join(SOURCES, table + ".csv")
-    if not os.path.exists(path) or time.time() - os.path.getmtime(path) > 24 * 3600:
-        req = urllib.request.Request(WAGO_CSV % table, headers={"User-Agent": "Mozilla/5.0 (compatible; loremaster-data)"})
-        with urllib.request.urlopen(req, timeout=60) as res, open(path, "wb") as f:
-            f.write(res.read())
-    with open(path, encoding="utf-8") as f:
-        return list(csv.DictReader(f))
-
-
-def game_file(files, fid):
-    """A file of the game by ID (game_files.GameFiles: the local client's, or wago.tools's when the client holds
-    it encrypted or there's no client)."""
-    return files.read_fdid(fid)
-
-
 def blp_bytes(raw):
     """A BLP texture as a Pillow image (Pillow can't read the uncompressed BGRA kind)."""
-    import io
-    import struct
-    from PIL import Image
     if raw[8] == 3:
         width, height = struct.unpack_from("<II", raw, 12)
         offset = struct.unpack_from("<I", raw, 20)[0]
@@ -269,7 +253,6 @@ def blp_bytes(raw):
 
 def painted_rows(image):
     """The rows a loading screen's painting fills: the grey letterbox bands above and below are flat."""
-    import numpy as np
     spread = np.asarray(image.convert("L"), dtype=float).std(axis=1)
     rows = np.where(spread > 8)[0]
     return (int(rows.min()), int(rows.max()) + 1) if len(rows) else (0, image.height)
@@ -280,7 +263,7 @@ def packaged_screen(casc, fid):
     in its top rows), since a client without the content's key holds it encrypted and would show nothing.
     Returns the zone's painting entry: { texture path, file width and height, painting's top row and height,
     the game's file ID (for the site's copy) }."""
-    image = blp_bytes(game_file(casc, fid)).convert("RGB")
+    image = blp_bytes(casc.read_fdid(fid)).convert("RGB")
     top, bottom = painted_rows(image)
     band = image.crop((0, top, image.width, bottom))
     height = round(SCREEN_SIZE[0] * band.height / band.width)
@@ -297,13 +280,13 @@ def journal_art(casc, zone_rows):
     files = {path[len(EJ_PREFIX):-4]: fid for path, fid in casc.paths().items()
              if path.startswith(EJ_PREFIX) and path.endswith(".blp")}
     plain = lambda name: "".join(ch for ch in name.lower() if ch.isalnum()).removeprefix("the")
-    screens = {r["ID"]: r for r in wago_csv("LoadingScreens")}
+    screens = {row["ID"]: row for row in wago_csv("LoadingScreens")}
     screen_of = {}
-    for m in wago_csv("Map"):
-        screen = screens.get(m["LoadingScreenID"])
+    for map_row in wago_csv("Map"):
+        screen = screens.get(map_row["LoadingScreenID"])
         fid = screen and int(screen["MainImageFileDataID"] or 0)
-        if fid and m["InstanceType"] in ("1", "2"):
-            screen_of.setdefault(plain(m["MapName_lang"]), fid)
+        if fid and map_row["InstanceType"] in ("1", "2"):
+            screen_of.setdefault(plain(map_row["MapName_lang"]), fid)
     found = 0
     for row in zone_rows:
         while len(row) < 4:
@@ -332,20 +315,28 @@ def reveal(casc):
     tiles, _ = db2.read(casc.read_fdid(WORLD_MAP_OVERLAY_TILE))
     files = {}
     for row in tiles.values():
-        r, c, layer, file, ref = row[0], row[1], row[2], row[3], row[-1]
+        tile_row, tile_col, layer, file_id, ref = row[0], row[1], row[2], row[3], row[-1]
         if layer == 0 and isinstance(ref, tuple):
-            files.setdefault(ref[1], []).append((r, c, file))
+            files.setdefault(ref[1], []).append((tile_row, tile_col, file_id))
     out = {}
     for oid, row in sorted(overlays.items()):
-        art, w, h, x, y = row[1], row[2], row[3], row[4], row[5]
+        art, width, height, x, y = row[1], row[2], row[3], row[4], row[5]
         parts = sorted(files.get(oid, []))
-        if not parts or not w or not h:
+        if not parts or not width or not height:
             continue
-        out.setdefault(art, []).append([w, h, x, y] + [f for _, _, f in parts])
+        out.setdefault(art, []).append([width, height, x, y] + [file_id for _, _, file_id in parts])
     return out
 
 
 VERIFIED = os.path.join(REPORTS, ".verified.json")
+TEXT_FIELDS = {"d": "description", "o": "objective", "c": "completion", "p": "progress"}  # an LT1 line's field
+QUEST_ID = re.compile(r"[1-9][0-9]{0,6}")  # ASCII digits only ("²".isdigit() is True)
+
+
+def report_order(name):
+    """Report files oldest first (issue-9 before issue-10), so a later report's text wins."""
+    number = "".join(ch for ch in name if ch.isdigit())
+    return (int(number) if number else 0, name)
 WOWHEAD_TOOLTIP = "https://nether.wowhead.com/forever/tooltip/quest/%d"
 
 
@@ -357,15 +348,13 @@ def same_name(a, b):
 
 def wowhead_names(ids):
     """{quest: Wowhead's name or None}, from the cache, else one gentle lookup each."""
-    import json
-    import time
     cache = json.load(open(VERIFIED, encoding="utf-8")) if os.path.exists(VERIFIED) else {}
     for qid in ids:
         if str(qid) in cache:
             continue
         name = None
         try:
-            req = urllib.request.Request(WOWHEAD_TOOLTIP % qid, headers={"User-Agent": "Mozilla/5.0 (compatible; loremaster-data)"})
+            req = urllib.request.Request(WOWHEAD_TOOLTIP % qid, headers=AGENT)
             with urllib.request.urlopen(req, timeout=20) as res:
                 name = json.loads(res.read().decode("utf-8")).get("name")
         except Exception as error:  # not found, or Wowhead unreachable: left unconfirmed
@@ -378,18 +367,31 @@ def wowhead_names(ids):
     return {qid: cache.get(str(qid)) for qid in ids}
 
 
-def write_text(pages):
-    """Lorebound_Text/Text.lua: each quest's details for the journal's quest page, the same as the site's
-    (lore_pages), loaded only when a quest page is first opened. LoreboundText[id] = { o = Forever's objective,
+# The quest pages' text, in three load-on-demand parts by the quest's group, so a page loads only its third.
+TEXT_PARTS = {EK: "Lorebound_Text_EasternKingdoms", KALIMDOR: "Lorebound_Text_Kalimdor"}
+TEXT_REST = "Lorebound_Text"  # dungeons, raids, class, professions, PvP and the rest
+
+
+def text_parts(rows, zone_rows, horde):
+    """{ quest: the text parts that hold its page }: its zone's group's, and the Horde view's too when that differs."""
+    out = {}
+    for qid, row in rows.items():
+        seen = {row[I["zone"]], horde.get(qid, {}).get(I["zone"] + 1) or row[I["zone"]]}
+        out[qid] = {TEXT_PARTS.get(zone_rows[zone - 1][1], TEXT_REST) for zone in seen}
+    return out
+
+
+def write_text(pages, part_of):
+    """The journal's quest pages, the same as the site's (lore_pages), in the parts text_parts names:
+    <part>/Text.lua adds LoreboundText[id] = the page as Lua source, made into a table only when that page is shown
+    (Core.lua's ns.QuestText), so only the strings stay in memory. The page: { o = Forever's objective,
     n = { { what, count } }, d, p, c = description, progress and completion text (Classic's, only where Forever's
-    objective matches Classic's or isn't checked yet; k is true once checked), r = { ch = choose one, it = receive
+    objective matches Classic's or isn't checked yet; k is true once checked; s is true when it's players' text from
+    Forever instead), r = { ch = choose one, it = receive
     ({ item, count, name, quality, icon }), m = money, rep = { { faction, value } }, sp = a spell } }."""
     def text(paragraphs):
         return BLANK_LINE.join(paragraphs) if paragraphs else None
-    lines = ["-- Generated by _tools/make_lore.py (lore_pages.py: Wowhead's tooltips for Forever's objectives, CMaNGOS's",
-             "-- classic-db (GPL-3.0) for the text and rewards). Don't edit by hand.",
-             "LoreboundText = {"]
-    kept = 0
+    parts = {name: [] for name in list(TEXT_PARTS.values()) + [TEXT_REST]}
     for qid in sorted(pages):
         page = pages[qid]
         entry = {}
@@ -405,41 +407,58 @@ def write_text(pages):
         if rewards:
             entry["r"] = {k: v for k, v in (("ch", rewards["choose"]), ("it", rewards["items"]), ("m", rewards["money"]),
                                              ("rep", rewards["rep"]), ("sp", rewards["spell"])) if v}
-        if entry:
-            entry["k"] = page["same"] is True
-            fields = []
-            for key, value in entry.items():
-                if isinstance(value, dict):
-                    value_text = "{" + ",".join("%s=%s" % (k, lua_value(v)) for k, v in value.items()) + "}"
-                else:
-                    value_text = lua_value(value)
-                fields.append("%s=%s" % (key, value_text))
-            lines.append("[%d]={%s}," % (qid, ",".join(fields)))
-            kept += 1
-    lines.append("}")
-    os.makedirs(os.path.dirname(TEXT_OUT), exist_ok=True)
-    with open(TEXT_OUT, "w", encoding="utf-8", newline=NEWLINE) as f:
-        f.write(NEWLINE.join(lines) + NEWLINE)
-    print("quest details for the journal:", kept, "quests,", os.path.getsize(TEXT_OUT) // 1024, "KB")
+        if not entry:
+            continue
+        entry["k"] = page["same"] is True
+        if page.get("shared"):
+            entry["s"] = True  # Forever's own text, as players read it
+        fields = []
+        for key, value in entry.items():
+            if isinstance(value, dict):
+                value_text = "{" + ",".join("%s=%s" % (k, lua_value(v)) for k, v in value.items()) + "}"
+            else:
+                value_text = lua_value(value)
+            fields.append("%s=%s" % (key, value_text))
+        source = "{%s}" % ",".join(fields)
+        level = "="
+        while "]" + level + "]" in source:
+            level += "="
+        for name in part_of[qid]:
+            parts[name].append("[%d]=[%s[%s]%s]," % (qid, level, source, level))
+    for name, entries in parts.items():
+        path = os.path.join(HERE, "..", name, "Text.lua")
+        lines = ["-- Generated by tools/make_lore.py (lore_pages.py: Wowhead's tooltips for Forever's objectives, CMaNGOS's",
+                 "-- classic-db (GPL-3.0) for the text and rewards). Each page is Lua source, read when it's shown.",
+                 "-- Don't edit by hand.",
+                 "local pages = {"] + entries + ["}",
+                 "LoreboundText = LoreboundText or {} -- every part adds its pages; Core.lua takes them",
+                 "for id, source in pairs(pages) do LoreboundText[id] = source end"]
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8", newline=NEWLINE) as f:
+            f.write(NEWLINE.join(lines) + NEWLINE)
+        print("quest pages in %s: %d quests, %d KB" % (name, len(entries), os.path.getsize(path) // 1024))
 
 
-def write_site_data(version, rows, zone_rows, horde):
+def chain_field(qid, chain_of):
+    """A quest's chain field: [its first quest, this one's step, steps in all], or None (a branch off a chain
+    stands alone)."""
+    chain = chain_of.get(qid)
+    return [chain[0], chain.index(qid) + 1, len(chain)] if chain and qid in chain else None
+
+
+def write_site_data(version, rows, zone_rows, horde, chain_of):
     """The site's quest list (data/quests-<version>.json) and pointer (data/latest.json). Each version's file
     stays, so a progress code made with an older Lorebound still reads against its own quest order. Zones
     carry their map and journal painting (make_lore_site_art.py draws them); horde holds the Horde view's
     differences by the site's field numbers (null: none for the Horde)."""
-    import json
     os.makedirs(SITE_DATA, exist_ok=True)
-    import lore_pages
     fields = ["zone", "level", "minLevel", "name", "objective", "starter", "starterKind", "races", "classes",
               "needsAll", "needsAny", "breadcrumbFor", "faction", "finisher", "map", "x", "y", "exclusiveTo",
               "minRep", "chain"]
-    chain_of = lore_pages.chains(rows, I)  # chain: [its first quest, this one's step, steps in all]
     quests = {}
     for qid in sorted(rows):
         row = rows[qid]
-        chain = chain_of.get(qid) if qid in chain_of.get(qid, []) else None  # a branch off a chain stands alone
-        entry = [row[I[f]] for f in fields[:-1]] + [[chain[0], chain.index(qid) + 1, len(chain)] if chain else None]
+        entry = [row[I[field]] for field in fields[:-1]] + [chain_field(qid, chain_of)]
         while entry and entry[-1] is None:
             entry.pop()
         quests[qid] = entry
@@ -460,31 +479,42 @@ def write_site_data(version, rows, zone_rows, horde):
 
 
 def pull_reports():
-    """Saves each open quest-report issue as lore_reports/issue-<number>.txt; returns their numbers."""
-    import json
-    import subprocess
-    out = subprocess.run(["gh", "issue", "list", "--repo", REPORT_REPO, "--label", "quest-report", "--state", "open",
+    """Saves each open quest-report issue you've approved (labelled "approved" on GitHub, after reading it) as
+    lore_reports/issue-<number>.txt; returns their numbers. Reports only pass the automatic checks (a real quest
+    ID, Wowhead's name) after that; the details a player sends (zone, level, giver, place) are yours to judge."""
+    out = subprocess.run(["gh", "issue", "list", "--repo", REPORT_REPO, "--label", "quest-report", "--label",
+                          APPROVED, "--state", "open",
                           "--limit", "500", "--json", "number,body"], capture_output=True, text=True, check=True)
     issues = json.loads(out.stdout)
     os.makedirs(REPORTS, exist_ok=True)
     for issue in issues:
-        lines = [line for line in issue["body"].splitlines() if line.startswith("LM1^")]
+        # Split as the report page does (line feeds only): splitlines() would also break on U+2028 and the like.
+        lines = [line.rstrip("\r") for line in issue["body"].split("\n") if line.startswith(("LM1^", "LT1^"))]
         with open(os.path.join(REPORTS, "issue-%d.txt" % issue["number"]), "w", encoding="utf-8", newline="\n") as f:
             f.write("\n".join(lines) + "\n")
-    print("pulled", len(issues), "report issues from", REPORT_REPO)
+    print("pulled", len(issues), "approved report issues from", REPORT_REPO)
     return [issue["number"] for issue in issues]
 
 
 def close_reports(numbers):
-    import subprocess
     for number in numbers:
         subprocess.run(["gh", "issue", "close", str(number), "--repo", REPORT_REPO, "--comment",
-                        "Thank you! These quests are in Lorebound's list now and ship with its next version."],
+                        "Thank you. This report is in Lorebound's data now and ships with its next version (a quest"
+                        " that doesn't check out against the game's list and Wowhead waits for a look first)."],
                        check=True)
     print("closed", len(numbers), "report issues")
 
 
+def pulled_numbers():
+    """The issue numbers of the reports pulled into lore_reports (issue-<number>.txt)."""
+    names = os.listdir(REPORTS) if os.path.isdir(REPORTS) else []
+    return sorted(int(name[6:-4]) for name in names if re.fullmatch(r"issue-[0-9]+\.txt", name))
+
+
 def main():
+    if "--close-pulled" in sys.argv:
+        close_reports(pulled_numbers())
+        return
     pulled = pull_reports() if "--pull" in sys.argv else []
     build()
     if pulled and "--close" in sys.argv:
@@ -565,10 +595,10 @@ def build():
                 return (row[1], None if kind == 1 else kind, faction) + where
         return (None,) * 6
 
-    def spots(q):
+    def spots(field):
         """Where a quest's objectives are, for its page's map: { uiMap: [[x, y], ...] } from the spawns of its
         creatures and objects, and of what drops its items."""
-        objectives = q(OBJECTIVES)
+        objectives = field(OBJECTIVES)
         points = {}
         if objectives is None:
             return points
@@ -614,36 +644,36 @@ def build():
                     return row[1]
         return None
 
-    def build(q, zone):
+    def make_row(field, zone):
         """Our row for a QuestieDB-style quest (q may be a dict of field overrides over a lupa row)."""
-        objective = " ".join(s for s in seq(q(OBJ_TEXT)) if isinstance(s, str) and s).strip() or None
-        name, kind, faction, ui, x, y = giver(q(STARTED_BY))
+        objective = " ".join(text for text in seq(field(OBJ_TEXT)) if isinstance(text, str) and text).strip() or None
+        name, kind, faction, ui, x, y = giver(field(STARTED_BY))
         row = [None] * len(ROW)
         row[I["zone"]] = zone
-        row[I["level"]] = q(QUEST_LEVEL)
-        row[I["minLevel"]] = q(REQ_LEVEL)
-        row[I["name"]] = q(NAME)
+        row[I["level"]] = field(QUEST_LEVEL)
+        row[I["minLevel"]] = field(REQ_LEVEL)
+        row[I["name"]] = field(NAME)
         row[I["objective"]] = objective
         row[I["starter"]], row[I["starterKind"]], row[I["faction"]] = name, kind, faction
         row[I["map"]], row[I["x"]], row[I["y"]] = ui, x, y
-        row[I["races"]] = q(RACES) or None
+        row[I["races"]] = field(RACES) or None
         if row[I["races"]]:
             row[I["faction"]] = None  # the race mask says who may take it; a giver's side can contradict it
         elif row[I["faction"]] is None:
             row[I["faction"]] = capital_side(ui, zone)
-        row[I["classes"]] = q(CLASSES) or None
-        row[I["needsAll"]] = seq(q(PRE_GROUP)) or None
-        row[I["needsAny"]] = seq(q(PRE_SINGLE)) or None
-        row[I["exclusiveTo"]] = seq(q(EXCLUSIVE)) or None
-        row[I["nextInChain"]] = q(NEXT_IN_CHAIN) or None
-        row[I["breadcrumbFor"]] = q(BREADCRUMB_FOR) or None
-        row[I["parent"]] = q(PARENT) or None
-        row[I["skill"]] = seq(q(REQ_SKILL)) or None
-        row[I["minRep"]] = seq(q(MIN_REP)) or None
-        row[I["maxRep"]] = seq(q(MAX_REP)) or None
-        row[I["maxLevel"]] = q(REQ_MAX_LEVEL) or None
-        row[I["untilDone"]] = q(UNTIL_COMPLETED) or None
-        row[I["finisher"]] = finisher(q(FINISHED_BY))
+        row[I["classes"]] = field(CLASSES) or None
+        row[I["needsAll"]] = seq(field(PRE_GROUP)) or None
+        row[I["needsAny"]] = seq(field(PRE_SINGLE)) or None
+        row[I["exclusiveTo"]] = seq(field(EXCLUSIVE)) or None
+        row[I["nextInChain"]] = field(NEXT_IN_CHAIN) or None
+        row[I["breadcrumbFor"]] = field(BREADCRUMB_FOR) or None
+        row[I["parent"]] = field(PARENT) or None
+        row[I["skill"]] = seq(field(REQ_SKILL)) or None
+        row[I["minRep"]] = seq(field(MIN_REP)) or None
+        row[I["maxRep"]] = seq(field(MAX_REP)) or None
+        row[I["maxLevel"]] = field(REQ_MAX_LEVEL) or None
+        row[I["untilDone"]] = field(UNTIL_COMPLETED) or None
+        row[I["finisher"]] = finisher(field(FINISHED_BY))
         return row
 
     rows, horde = {}, {}
@@ -657,41 +687,41 @@ def build():
         upper = (name or "").upper()
         return not name or name.startswith(("[", "<")) or "UNUSED" in upper or "DEPRECATED" in upper
 
-    for qid, q in quests.items():
+    for qid, quest in quests.items():
         if qid not in client:
             dropped["not on Forever"] += 1
-            if (q[SPECIAL_FLAGS] or 0) & REPEATABLE:
+            if (quest[SPECIAL_FLAGS] or 0) & REPEATABLE:
                 skip.add(qid)  # in case the game offers it after all
             continue
-        if (q[SPECIAL_FLAGS] or 0) & REPEATABLE:
+        if (quest[SPECIAL_FLAGS] or 0) & REPEATABLE:
             dropped["repeatable"] += 1
             skip.add(qid)
             continue
-        if unused(q[NAME]) or qid in blacklisted:
+        if unused(quest[NAME]) or qid in blacklisted:
             dropped["unused or blacklisted"] += 1
             skip.add(qid)
             continue
-        zone = zones.of(q[ZONE_OR_SORT])
+        zone = zones.of(quest[ZONE_OR_SORT])
         if zone is None:
             dropped["seasonal or no zone"] += 1
             skip.add(qid)
-            if (q[ZONE_OR_SORT] or 0) >= 0:
+            if (quest[ZONE_OR_SORT] or 0) >= 0:
                 unplaced.add(qid)  # no zone, or one the game doesn't know: the dungeon journal may
             continue
-        row = build(lambda f: q[f], zone)
-        extras[qid] = {"end": giver(q[FINISHED_BY])[3:], "spots": spots(lambda f: q[f])}  # for its page
+        row = make_row(lambda field: quest[field], zone)
+        extras[qid] = {"end": giver(quest[FINISHED_BY])[3:], "spots": spots(lambda field: quest[field])}  # for its page
         rows[qid] = row
         fix = horde_fix[qid]
         if fix is not None:
-            overrides = {k: v for k, v in fix.items()}
-            def hq(f, q=q, overrides=overrides):
-                if f in overrides:
-                    return overrides[f] if overrides[f] is not False else None
-                return q[f]
-            hzone = zones.of(hq(ZONE_OR_SORT)) or zone
-            hrow = build(hq, hzone)
-            diff = {i + 1: (hrow[i] if hrow[i] is not None else False)
-                    for i in range(len(ROW)) if hrow[i] != row[i]}
+            overrides = {field: value for field, value in fix.items()}
+            def horde_field(field, quest=quest, overrides=overrides):
+                if field in overrides:
+                    return overrides[field] if overrides[field] is not False else None
+                return quest[field]
+            horde_zone = zones.of(horde_field(ZONE_OR_SORT)) or zone
+            horde_row = make_row(horde_field, horde_zone)
+            diff = {i + 1: (horde_row[i] if horde_row[i] is not None else False)
+                    for i in range(len(ROW)) if horde_row[i] != row[i]}
             if diff:
                 horde[qid] = diff
 
@@ -716,27 +746,27 @@ def build():
         return found.pop() if len(found) == 1 and None not in found else None
 
     def npc_dungeon(nid):
-        n = npcs[nid]
-        if n is None:
+        npc = npcs[nid]
+        if npc is None:
             return None
-        spawns = n[NPC_SPAWNS]
+        spawns = npc[NPC_SPAWNS]
         areas = list(spawns.keys()) if spawns is not None else []
-        return only_dungeon(areas or ([n[9]] if n[9] else []))
+        return only_dungeon(areas or ([npc[NPC_ZONE]] if npc[NPC_ZONE] else []))
 
     def object_dungeon(oid):
-        o = objects[oid]
-        if o is None:
+        obj = objects[oid]
+        if obj is None:
             return None
-        spawns = o[OBJECT_SPAWNS]
+        spawns = obj[OBJECT_SPAWNS]
         areas = list(spawns.keys()) if spawns is not None else []
-        return only_dungeon(areas or ([o[5]] if o[5] else []))
+        return only_dungeon(areas or ([obj[OBJECT_ZONE]] if obj[OBJECT_ZONE] else []))
 
     def item_dungeon(iid):
-        it = items[iid]
-        if it is None or it[14]:  # sold by a vendor: not a dungeon item
+        item = items[iid]
+        if item is None or item[ITEM_VENDORS]:  # sold by a vendor: not a dungeon item
             return None
-        sources = [npc_dungeon(n) for n in seq(it[2])] + [object_dungeon(o) for o in seq(it[3])]
-        for zone in {s for s in sources if s}:
+        sources = [npc_dungeon(npc) for npc in seq(item[ITEM_NPC_DROPS])] + [object_dungeon(obj) for obj in seq(item[ITEM_OBJECT_DROPS])]
+        for zone in {source for source in sources if source}:
             if sources.count(zone) * 2 >= len(sources):
                 return zone
         return None
@@ -776,7 +806,7 @@ def build():
     prereq, min_level = completist.qcQuestPrereq, completist.qcQuestMinLevel
     unavailable = completist.qcUnavailableQuests or lua.eval("{}")
     added = 0
-    for qid, q in qc_db.items():
+    for qid, entry in qc_db.items():
         if qid in rows or quests[qid] is not None:
             continue
         if qid not in client or unavailable[qid] is not None:
@@ -789,7 +819,7 @@ def build():
         if profession[qid] is not None:  # no skill to check it by: learned in game if you do it
             dropped["holiday/profession (Completist)"] += 1
             continue
-        name, level, sort, kind, faction, races, classes = (q[i] for i in range(1, 8))
+        name, level, sort, kind, faction, races, classes = (entry[i] for i in range(1, 8))
         if kind != 1:
             dropped["repeatable"] += 1
             skip.add(qid)
@@ -832,14 +862,14 @@ def build():
         base = name if name.startswith("Excavation Site") else name.split(":")[0]
         base = base.replace("Lower ", "").replace("Upper ", "").strip()
         wanted = {base.lower(), ("the " + base).lower(), base.lower().replace("the ", "", 1)}
-        for i, z in enumerate(zones.list, 1):
-            if z[0].lower() in wanted:
-                if z[1] == OTHER:
-                    z[1] = DUNGEONS  # a dungeon the zone list didn't know as one (Forever's new ones)
+        for i, zone_row in enumerate(zones.list, 1):
+            if zone_row[0].lower() in wanted:
+                if zone_row[1] == OTHER:
+                    zone_row[1] = DUNGEONS  # a dungeon the zone list didn't know as one (Forever's new ones)
                 return i
         ui_map = None
-        for area, d in (data.dungeons or {}).items():
-            title = (d[1] or "").lower()
+        for area, dungeon in (data.dungeons or {}).items():
+            title = (dungeon[1] or "").lower()
             if title in wanted or title.replace("the ", "", 1) in wanted:
                 ui_map = zones.area_to_map.get(area)
                 if ui_map:
@@ -855,9 +885,9 @@ def build():
     for name, dungeon in sorted((journal or {}).items()):
         zone = journal_zone(name)
         listed = dungeon.quests
-        for k in range(1, (len(listed) if listed else 0) + 1):
-            q = listed[k]
-            qid = q.id
+        for index in range(1, (len(listed) if listed else 0) + 1):
+            listed_quest = listed[index]
+            qid = listed_quest.id
             if not qid or (qid in skip and qid not in unplaced):
                 continue
             if qid in unplaced and qid not in rows:
@@ -866,7 +896,7 @@ def build():
                 skip.discard(qid)
                 unplaced.discard(qid)
                 if quests[qid] is not None:
-                    rows[qid] = build(lambda f, zq=quests[qid]: zq[f], zone)
+                    rows[qid] = make_row(lambda field, quest=quests[qid]: quest[field], zone)
                     journal_added += 1
                     continue
             if qid in rows:
@@ -876,14 +906,14 @@ def build():
                         horde[qid][I["zone"] + 1] = zone
                     journal_moved += 1
                 continue
-            if not q.name:
+            if not listed_quest.name:
                 continue
             row = [None] * len(ROW)
-            row[I["zone"]], row[I["name"]] = zone, q.name
-            row[I["level"]], row[I["minLevel"]] = q.level, q.requires
-            row[I["objective"]] = q.objective or None
-            row[I["starter"]], row[I["finisher"]] = first_part(q.pickup), first_part(q.turnin)
-            row[I["faction"]] = {"Alliance": 1, "Horde": 2}.get(q.faction)
+            row[I["zone"]], row[I["name"]] = zone, listed_quest.name
+            row[I["level"]], row[I["minLevel"]] = listed_quest.level, listed_quest.requires
+            row[I["objective"]] = listed_quest.objective or None
+            row[I["starter"]], row[I["finisher"]] = first_part(listed_quest.pickup), first_part(listed_quest.turnin)
+            row[I["faction"]] = {"Alliance": 1, "Horde": 2}.get(listed_quest.faction)
             rows[qid] = row
             journal_added += 1
     if journal is not None:
@@ -892,15 +922,19 @@ def build():
     # Players' reports of quests none of the sources has.
     reported = 0
     zone_names = {}
-    for i, z in enumerate(zones.list, 1):
-        zone_names.setdefault(z[0], i)
+    for i, zone_row in enumerate(zones.list, 1):
+        zone_names.setdefault(zone_row[0], i)
     reports = {}  # quest -> its first report's fields, with the sides of every report
-    for name in sorted(os.listdir(REPORTS)) if os.path.isdir(REPORTS) else []:
+    shared_text = {}  # quest -> { field: its Forever text as players read it }, the latest report's
+    for name in sorted(os.listdir(REPORTS), key=report_order) if os.path.isdir(REPORTS) else []:
         if not name.endswith(".txt"):
             continue
-        for line in open(os.path.join(REPORTS, name), encoding="utf-8", errors="replace"):
-            parts = line.strip().split("^")
-            if len(parts) < 15 or parts[0] != "LM1" or not parts[1].isdigit():
+        for line in open(os.path.join(REPORTS, name), encoding="utf-8", errors="replace", newline="\n"):
+            parts = line.strip().split("^", 3) if line.startswith("LT1^") else line.strip().split("^")
+            if len(parts) == 4 and parts[0] == "LT1" and QUEST_ID.fullmatch(parts[1]) and parts[2] in TEXT_FIELDS and parts[3].strip():
+                shared_text.setdefault(int(parts[1]), {})[TEXT_FIELDS[parts[2]]] = parts[3].strip()
+                continue
+            if len(parts) < 15 or parts[0] != "LM1" or not QUEST_ID.fullmatch(parts[1]):
                 continue
             qid = int(parts[1])
             sides = int(parts[5]) if parts[5] in ("1", "2", "3") else 0
@@ -913,42 +947,43 @@ def build():
     names = {} if "--trust" in sys.argv else wowhead_names(sorted(fresh))
     doubtful = []
     for qid, (sides, parts) in sorted(reports.items()):
-        if True:
-            title, zone_name = parts[2].strip(), parts[3].strip()
-            if qid in rows or qid in skip or not title or not zone_name:
+        title, zone_name = parts[2].strip(), parts[3].strip()
+        if qid in rows or qid in skip or not title or not zone_name:
+            continue
+        if zone_name in PROFESSION_SORTS.values():
+            continue  # no skill to check it by: each character learns it in game
+        if "--trust" not in sys.argv:
+            if qid not in client:
+                doubtful.append((qid, title, "not in the game's quest list"))
                 continue
-            if zone_name in PROFESSION_SORTS.values():
-                continue  # no skill to check it by: each character learns it in game
-            if "--trust" not in sys.argv:
-                if qid not in client:
-                    doubtful.append((qid, title, "not in the game's quest list"))
-                    continue
-                if not same_name(names.get(qid), title):
-                    found = names.get(qid)
-                    doubtful.append((qid, title, "Wowhead calls it %r" % found if found else "not found on Wowhead"))
-                    continue
-            zone = zone_names.get(zone_name)
-            if zone is None:
-                zones.list.append([zone_name, OTHER, None])
-                zone = zone_names[zone_name] = len(zones.list)
-            row = [None] * len(ROW)
-            row[I["zone"]], row[I["name"]] = zone, title
-            row[I["level"]] = int(parts[4]) if parts[4].isdigit() else None
-            row[I["faction"]] = sides if sides in (1, 2) else None
-            row[I["starter"]] = parts[7].strip() or None
-            if parts[6].startswith("o"):
-                row[I["starterKind"]] = 2  # an object
-            if parts[8].isdigit() and parts[9] and parts[10]:
-                try:
-                    row[I["map"]], row[I["x"]], row[I["y"]] = int(parts[8]), float(parts[9]), float(parts[10])
-                except ValueError:
-                    pass
-            row[I["finisher"]] = parts[12].strip() or None
-            if zones.list[zone - 1][1] == CLASS and parts[14].isdigit():
-                row[I["classes"]] = 2 ** (int(parts[14]) - 1)
-            rows[qid] = row
-            reported += 1
+            if not same_name(names.get(qid), title):
+                found = names.get(qid)
+                doubtful.append((qid, title, "Wowhead calls it %r" % found if found else "not found on Wowhead"))
+                continue
+        zone = zone_names.get(zone_name)
+        if zone is None:
+            zones.list.append([zone_name, OTHER, None])
+            zone = zone_names[zone_name] = len(zones.list)
+        row = [None] * len(ROW)
+        row[I["zone"]], row[I["name"]] = zone, title
+        row[I["level"]] = int(parts[4]) if parts[4].isdigit() else None
+        row[I["faction"]] = sides if sides in (1, 2) else None
+        row[I["starter"]] = parts[7].strip() or None
+        if parts[6].startswith("o"):
+            row[I["starterKind"]] = 2  # an object
+        if parts[8].isdigit() and parts[9] and parts[10]:
+            try:
+                row[I["map"]], row[I["x"]], row[I["y"]] = int(parts[8]), float(parts[9]), float(parts[10])
+            except ValueError:
+                pass
+        row[I["finisher"]] = parts[12].strip() or None
+        if zones.list[zone - 1][1] == CLASS and parts[14].isdigit():
+            row[I["classes"]] = 2 ** (int(parts[14]) - 1)
+        rows[qid] = row
+        reported += 1
     print("quests from players' reports", reported)
+    shared_text = {qid: text for qid, text in shared_text.items() if qid in rows}
+    print("quests with players' text", len(shared_text))
     if doubtful:
         with open(os.path.join(REPORTS, "needs-a-look.txt"), "w", encoding="utf-8", newline="\n") as f:
             f.write("# Reported quests left out until checked by hand (python make_lore.py --trust takes them).\n")
@@ -991,10 +1026,10 @@ def build():
     def middle(i):
         values = sorted(levels.get(i, [99]))
         return values[len(values) // 2]
-    zl = zones.list
-    order = sorted(range(1, len(zl) + 1), key=lambda i: (zl[i - 1][1], middle(i), zl[i - 1][0]))
+    zone_list = zones.list
+    order = sorted(range(1, len(zone_list) + 1), key=lambda i: (zone_list[i - 1][1], middle(i), zone_list[i - 1][0]))
     renumber = {old: new for new, old in enumerate(order, 1)}
-    zone_rows = [zl[old - 1] for old in order]
+    zone_rows = [zone_list[old - 1] for old in order]
     art_found = journal_art(casc, zone_rows)
     for row in rows.values():
         row[I["zone"]] = renumber[row[I["zone"]]]
@@ -1003,20 +1038,24 @@ def build():
             diff[I["zone"] + 1] = renumber[diff[I["zone"] + 1]]
 
     # The list's version: progress codes name it, so the site reads them against the same quest order.
-    import hashlib
-    import json
     version = hashlib.sha1(json.dumps([sorted(rows), [z[0] for z in zone_rows]]).encode()).hexdigest()[:10]
-    write_site_data(version, rows, zone_rows, horde)
-    import lore_pages
-    write_text(lore_pages.write(rows, extras, I))
+    chain_of = lore_pages.chains(rows, I)
+    write_site_data(version, rows, zone_rows, horde, chain_of)
+    pages = lore_pages.write(rows, extras, I, chain_of, shared_text)
+    write_text(pages, text_parts(rows, zone_rows, horde))
+    # Quests whose Forever text isn't known: not Classic's (checked against Forever), and players' text hasn't given
+    # both the description and the completion yet (what's missing is still asked for).
+    want_text = sorted(qid for qid, page in pages.items() if page["same"] is not True and not (
+        page.get("shared") and page["text"]["description"] and page["text"]["completion"]))
 
     lines = [
-        "-- Generated by _tools/make_lore.py from Zquest's QuestieDB export (GPL-3.0), Quest Completist's",
-        "-- Forever data and the game's own quest and zone tables. Personal; don't edit by hand.",
+        "-- Generated by tools/make_lore.py from Zquest's QuestieDB export (GPL-3.0), Quest Completist's",
+        "-- Forever data and the game's own quest and zone tables. Don't edit by hand.",
         "-- zones[i] = { name, group, uiMapID, journal art (a dungeon's or raid's painting, a file ID) }",
         "-- quests[id] = { " + ", ".join(ROW) + ", (26 unused), chain = { first quest, step, steps } }",
         "-- horde[id] = { [field] = value or false }: the Horde view's differences.",
         "-- skip = { id, ... }: quests left out on purpose (repeatable, seasonal, blacklisted), never learned.",
+        "-- wantText = { id, ... }: quests whose Forever text isn't known yet (Share.lua asks players for it).",
         "-- reveal[uiMapArtID] = { { width, height, x, y, tile files row by row }, ... }: every sub-zone's overlay.",
         "LoreboundData = {",
         "version = " + lua_string(version) + ",",
@@ -1025,13 +1064,11 @@ def build():
     ]
     lines += [lua_value(z) + "," for z in zone_rows]
     lines += ["},", "quests = {"]
-    import lore_pages
-    chain_of = lore_pages.chains(rows, I)
     for qid in sorted(rows):
         row = list(rows[qid])
-        chain = chain_of.get(qid) if qid in chain_of.get(qid, []) else None
-        if chain:  # field 27 (26 is the addon's own, for learned quests): { first quest, this step, steps in all }
-            row += [None, [chain[0], chain.index(qid) + 1, len(chain)]]
+        chain = chain_field(qid, chain_of)
+        if chain:  # field 27 (26 is the addon's own, for learned quests)
+            row += [None, chain]
         while row and row[-1] is None:
             row.pop()
         lines.append("[%d]=%s," % (qid, lua_value(row)))
@@ -1047,6 +1084,7 @@ def build():
     skip -= set(rows)
     skip -= unplaced  # no zone anyone knows: learned (and reported) in game with the quest log's zone
     lines.append("skip = {" + ",".join(str(q) for q in sorted(skip)) + "},")
+    lines.append("wantText = {" + ",".join(str(q) for q in want_text) + "},")
     lines += ["}"]
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8", newline="\n") as f:
@@ -1062,7 +1100,6 @@ def new_in_client(client, rows, skip):
     """Quest IDs a patch added to the game that no source has yet: named from Wowhead (cached) into
     lore_reports/new-in-client.txt. Lorebound learns them in game and players report them; this says
     what to expect. The first run only notes the client's list."""
-    import json
     seen_file = os.path.join(REPORTS, ".client_quests.json")
     seen = set(json.load(open(seen_file, encoding="utf-8"))) if os.path.exists(seen_file) else None
     os.makedirs(REPORTS, exist_ok=True)

@@ -1,4 +1,4 @@
-# Builds Lorebound (with Lorebound_Data and Lorebound_Text beside it, see .pkgmeta) and publishes it whenever a
+# Builds Lorebound (with Lorebound_Data and the three Lorebound_Text parts beside it, see .pkgmeta) and publishes it whenever a
 # version tag (v1.2.3) is pushed, or when the weekly quest list update (update.yml) makes one: a GitHub release
 # always, and CurseForge once the repository has a CF_API_KEY secret (the .toc has the project ID).
 name: Release
@@ -28,7 +28,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ inputs.tag || github.ref }}
-      # Patch notes: just this version's "## x.y.z" section of CHANGELOG.md, which the packager sends as the
+      # Patch notes: only this version's "## x.y.z" section of CHANGELOG.md, which the packager sends as the
       # CurseForge changelog and the GitHub release's text. Fails the release rather than publish it with no notes.
       - name: Patch notes for this version
         env:

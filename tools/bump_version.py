@@ -1,5 +1,5 @@
 """After the weekly quest list update (.github/workflows/update.yml): when the quest list, the quest pages or the
-site changed, bumps the patch version in Lorebound's three .toc files, adds a CHANGELOG.md entry saying what
+site changed, bumps the patch version in all of Lorebound's .toc files, adds a CHANGELOG.md entry saying what
 changed, and hands the workflow the new tag (v1.2.3). Nothing changed: no tag, so nothing is released.
 
     python tools/bump_version.py
@@ -11,8 +11,9 @@ import subprocess
 import lupa
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TOCS = ["Lorebound.toc", "Lorebound_Data/Lorebound_Data.toc", "Lorebound_Text/Lorebound_Text.toc"]
-WATCHED = ["Lorebound_Data", "Lorebound_Text", "site/public"]
+TEXT_PARTS = ["Lorebound_Text", "Lorebound_Text_EasternKingdoms", "Lorebound_Text_Kalimdor"]
+TOCS = ["Lorebound.toc", "Lorebound_Data/Lorebound_Data.toc"] + ["%s/%s.toc" % (part, part) for part in TEXT_PARTS]
+WATCHED = ["Lorebound_Data", *TEXT_PARTS, "site/public"]
 
 
 def git(*args):

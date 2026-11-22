@@ -21,10 +21,6 @@ ns.Export = Export
 
 local LETTER = { "b", "c", "d", "e", "f", "a" } -- by Lore's statuses: DONE ACTIVE AVAILABLE LATER LOCKED HIDDEN
 
-local function Clean(text) -- the code's separators, and what the site refuses to store
-    return (tostring(text or ""):gsub("[~;%^|\n<>`]", " "))
-end
-
 -- "First Surname": Forever gives characters a surname, UnitName's second answer (elsewhere the realm, or
 -- nothing for yourself).
 local function FullName()
@@ -36,13 +32,13 @@ end
 
 local function Letter(id)
     local Lore = ns.Lore
-    local s = Lore.StatusOf(id)
-    if s == Lore.DONE and Lore.IsPassed(id) then return "g" end
-    return LETTER[s] or "a"
+    local state = Lore.StatusOf(id)
+    if state == Lore.DONE and Lore.IsPassed(id) then return "g" end
+    return LETTER[state] or "a"
 end
 
 function Export.Code()
-    local data, Lore = ns.LoadData(), ns.Lore
+    local data, Lore, Plain = ns.LoadData(), ns.Lore, ns.Plain
     if not data then return nil end
     Lore.Refresh()
 
@@ -67,19 +63,19 @@ function Export.Code()
     local learned = {}
     for id, entry in pairs(ns.db.learned) do
         if Lore.IsLearned(id) then
-            learned[#learned + 1] = table.concat({ id, Clean(entry[1]), Clean(entry[2]), entry[3] or "", Letter(id) }, "^")
+            learned[#learned + 1] = table.concat({ id, Plain(entry[1]), Plain(entry[2]), entry[3] or "", Letter(id) }, "^")
         end
     end
 
     -- Zones of the list by their place in it; zones only learned quests made by name (their order differs).
     local badges, zoneIndex, learnedZone = {}, {}, {}
-    for zone, z in ipairs(Lore.Zones()) do
-        if zone <= Lore.listZones then zoneIndex[z[1]] = zone else learnedZone[z[1]] = true end
+    for zone, entry in ipairs(Lore.Zones()) do
+        if zone <= Lore.listZones then zoneIndex[entry[1]] = zone else learnedZone[entry[1]] = true end
     end
     for key, at in pairs(ns.charDB.badges) do
         local index = zoneIndex[key]
         if index then badges[#badges + 1] = index .. ":" .. at end
-        if learnedZone[key] then badges[#badges + 1] = "z" .. Clean(key):gsub(":", " ") .. ":" .. at end
+        if learnedZone[key] then badges[#badges + 1] = "z" .. Plain(key):gsub(":", " ") .. ":" .. at end
         if key == "group:1" or key == "group:2" then badges[#badges + 1] = "g" .. key:sub(-1) .. ":" .. at end
         if key == "seal" then badges[#badges + 1] = "s:" .. at end
     end
@@ -89,7 +85,7 @@ function Export.Code()
     local _, _, class = UnitClass("player")
     local today, week = ns.TurnInCounts()
     return table.concat({
-        "LMP1", data.version or "", Clean(name), Clean(GetRealmName and GetRealmName() or ""), race or "", class or "",
+        "LMP1", data.version or "", Plain(name), Plain(GetRealmName and GetRealmName()), race or "", class or "",
         Lore.Faction() or "", UnitLevel("player") or "", time(), today, week,
         table.concat(runs), table.concat(reasons, ";"), table.concat(learned, ";"), table.concat(badges, ";"),
     }, "~")

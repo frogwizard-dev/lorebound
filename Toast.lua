@@ -3,8 +3,8 @@ local _, ns = ...
 -- After each quest turned in: a toast near the top of the screen with the zone's ring ticking up. When a
 -- turn-in closes a ring (the zone, its continent or group, or the whole Lorebound count) a bigger banner
 -- instead: the ring sweeps shut, a halo bursts, sparks fly out, a fanfare plays and the badge it earns
--- (Badge.lua) takes the ring's place. Our own frame on
--- UIParent, built the first time it's needed; clicking it opens the journal on that zone.
+-- (Badge.lua) takes the ring's place. Our own frame on UIParent, built the first time it's needed;
+-- clicking it opens the journal on that zone.
 
 local Toast = {}
 ns.Toast = Toast
@@ -145,9 +145,9 @@ local function Build()
         frame.big:SetScript("OnUpdate", nil)
         frame.big.onDone = nil
         celebrating = false
-        local next = waiting
+        local queued = waiting
         waiting = nil
-        if next then C_Timer.After(0.2, function() Toast.Show(next) end) end
+        if queued then C_Timer.After(0.2, function() Toast.Show(queued) end) end
     end)
 end
 
@@ -193,6 +193,16 @@ local function Sound(kit)
     if (ns.db.sound or testing) and kit then PlaySound(kit) end
 end
 
+-- What a toast shows for a zone: its counts, its group's and the whole count (Lore.TurnedIn's shape).
+local function InfoFor(zone, allDone, allTotal)
+    local Lore = ns.Lore
+    local _, group = Lore.Zone(zone)
+    local done, total = Lore.Count(zone)
+    local groupDone, groupTotal = Lore.GroupCount(group)
+    return { zone = zone, group = group, counted = Lore.IN_TOTAL[group], zoneDone = done, zoneTotal = total,
+             groupDone = groupDone, groupTotal = groupTotal, allDone = allDone, allTotal = allTotal }
+end
+
 local function Has(list, key)
     for _, value in ipairs(list or {}) do
         if value == key then return true end
@@ -206,14 +216,9 @@ function Toast.Show(info, earned)
     if not info or info.zoneTotal == 0 then return end
     -- A ring closed somewhere else by this turn-in (a quest there counted done with it): that one.
     if earned and not Has(earned, (ns.Lore.Zone(info.zone))) then
-        for zone, z in ipairs(ns.Lore.Zones()) do
-            if Has(earned, z[1]) then
-                local done, total = ns.Lore.Count(zone)
-                local groupDone, groupTotal = ns.Lore.GroupCount(z[2])
-                info = {
-                    zone = zone, group = z[2], counted = ns.Lore.IN_TOTAL[z[2]], zoneDone = done, zoneTotal = total,
-                    groupDone = groupDone, groupTotal = groupTotal, allDone = info.allDone, allTotal = info.allTotal,
-                }
+        for zone, entry in ipairs(ns.Lore.Zones()) do
+            if Has(earned, entry[1]) then
+                info = InfoFor(zone, info.allDone, info.allTotal)
                 break
             end
         end
@@ -240,55 +245,55 @@ function Toast.Show(info, earned)
     ring:SetGlow(false)
 
     local Badge = ns.Badge
-    local done, of, color, sound, badge
+    local done, outOf, color, sound, badge
     if allClosed then
-        done, of, color = info.allDone, info.allTotal, colors.total
+        done, outOf, color = info.allDone, info.allTotal, colors.total
         frame.title:SetText("Lorebound!")
-        frame.line1:SetText(("Every one of the %d quests Lorebound counts, done."):format(of))
+        frame.line1:SetText(("Every one of the %d quests Lorebound counts, done."):format(outOf))
         frame.line2:SetText(("The last was in %s. You've earned %s."):format(zoneName, Badge.Name("seal")))
         sound = SOUNDKIT.UI_LEGENDARY_LOOT_TOAST
         badge = { "seal" }
     elseif groupClosed then
-        done, of, color = info.groupDone, info.groupTotal, colors.group
+        done, outOf, color = info.groupDone, info.groupTotal, colors.group
         frame.title:SetText(("%s complete!"):format(groupName))
         local crest = info.group == 1 or info.group == 2
         badge = crest and { "group", info.group } or { "zone", info.zone }
         frame.line1:SetText(crest and ("You've earned %s."):format(Badge.Name("group", info.group))
-            or ("All %d quests in %s."):format(of, groupName))
+            or ("All %d quests in %s."):format(outOf, groupName))
         frame.line2:SetText(("Lorebound %d / %d"):format(info.allDone, info.allTotal))
         sound = SOUNDKIT.UI_LEGENDARY_LOOT_TOAST
     elseif zoneClosed then
-        done, of, color = info.zoneDone, info.zoneTotal, colors.zone
+        done, outOf, color = info.zoneDone, info.zoneTotal, colors.zone
         frame.title:SetText(("%s complete!"):format(zoneName))
-        frame.line1:SetText(("All %d quests done: %s is yours."):format(of, Badge.Name("zone", info.zone)))
+        frame.line1:SetText(("All %d quests done: %s is yours."):format(outOf, Badge.Name("zone", info.zone)))
         frame.line2:SetText(("|cffa870ff%s %d / %d|r"):format(groupName, info.groupDone, info.groupTotal))
         sound = SOUNDKIT.UI_WORLDQUEST_COMPLETE
         badge = { "zone", info.zone }
     else
-        done, of, color = info.zoneDone, info.zoneTotal, colors.zone
+        done, outOf, color = info.zoneDone, info.zoneTotal, colors.zone
         frame.title:SetText(zoneName)
-        local left = of - done
-        frame.line1:SetText(("%d / %d quests  ·  %d to go"):format(done, of, left))
+        local left = outOf - done
+        frame.line1:SetText(("%d / %d quests  ·  %d to go"):format(done, outOf, left))
         frame.line2:SetText(("|cffa870ff%s %d / %d|r"):format(groupName, info.groupDone, info.groupTotal))
     end
     if closing then frame.title:SetTextColor(1, 0.82, 0.25) else frame.title:SetTextColor(1, 1, 1) end
     ring:Paint(color, 0.25)
-    ring.label:SetText(closing and "" or ("%d%%"):format(math.floor(done / of * 100)))
+    ring.label:SetText(closing and "" or ("%d%%"):format(math.floor(done / outOf * 100)))
 
     Present(closing and BIG_HOLD or HOLD)
-    ring:Draw(math.max(0, done - 1) / of)
+    ring:Draw(math.max(0, done - 1) / outOf)
     if closing then
-        ring:SetProgress(1, true, function(r)
-            Celebrate(r)
+        ring:SetProgress(1, true, function(closedRing)
+            Celebrate(closedRing)
             Sound(sound)
             -- The badge takes the ring's place.
             frame.badge:Set(badge[1], badge[2])
             frame.badge:Show()
             frame.reveal:Play()
-            r:Hide()
+            closedRing:Hide()
         end)
     else
-        ring:SetProgress(done / of, true)
+        ring:SetProgress(done / outOf, true)
         frame.plusAnim:Stop()
         frame.plusAnim:Play()
     end
@@ -308,14 +313,9 @@ function Toast.Test(closing)
         end
     end
     if not zone then return end
-    local name, group = Lore.Zone(zone)
-    local done, total = Lore.Count(zone)
-    local groupDone, groupTotal = Lore.GroupCount(group)
-    local allDone, allTotal = Lore.TotalCount()
+    local info = InfoFor(zone, Lore.TotalCount())
+    info.zoneDone = closing and info.zoneTotal or math.max(1, info.zoneDone)
     testing = true
-    Toast.Show({
-        zone = zone, group = group, counted = Lore.IN_TOTAL[group], zoneDone = closing and total or math.max(1, done),
-        zoneTotal = total, groupDone = groupDone, groupTotal = groupTotal, allDone = allDone, allTotal = allTotal,
-    }, closing and { name } or nil)
+    Toast.Show(info, closing and { (Lore.Zone(zone)) } or nil)
     testing = false
 end

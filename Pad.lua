@@ -14,9 +14,10 @@ local _, ns = ...
 -- inside Blizzard's window code) and the moment a fight starts, when the journal closes too.
 --
 --   D-pad up/down     zones (the page follows), quests, or rows of the overview
---   D-pad right / A   into the zone's quests (or the overview's badges); A opens what's chosen
---   D-pad left / B    back; B closes the giver map or the settings, then the journal
---   X                 show the quest giver (on a zone or a ring: pin or unpin it)
+--   D-pad right / A   into the zone's quests (or the overview's badges); A opens what's chosen, and A on
+--                     an opened quest its page (Quest.lua takes the keys while that's up)
+--   D-pad left / B    back; B closes a badge, the giver map or the settings, then the journal
+--   X                 show the quest giver (on a zone or a badge: pin or unpin it)
 --   Y                 locked-out quests on/off (on the overview: the settings)
 --   LB / RB           To do, Done, All (a zone's quests)
 --   LT / RT           a page up or down

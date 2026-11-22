@@ -1,9 +1,11 @@
 package-as: Lorebound
 
-# The quest list and the quest pages are add-ons of their own beside Lorebound (both load on demand).
+# The quest list and the quest pages (in three parts) are add-ons of their own beside Lorebound, all load on demand.
 move-folders:
   Lorebound/Lorebound_Data: Lorebound_Data
   Lorebound/Lorebound_Text: Lorebound_Text
+  Lorebound/Lorebound_Text_EasternKingdoms: Lorebound_Text_EasternKingdoms
+  Lorebound/Lorebound_Text_Kalimdor: Lorebound_Text_Kalimdor
 
 manual-changelog:
   filename: RELEASE_NOTES.md
@@ -17,3 +19,4 @@ ignore:
   - CHANGELOG.md
   - CURSEFORGE.md
   - README.md
+  - ROUTINE.md

@@ -1,12 +1,13 @@
 # The quest list's weekly update, on GitHub's machines (no game needed: the game's tables and art come from
-# wago.tools's copy of Forever's newest build). Takes players' reports from the loremaster-reports issues, builds
-# the quest list and quest pages, checks new quests against Wowhead, makes any new site art, and when anything
-# changed: bumps the patch version, notes it in CHANGELOG.md, commits, tags, releases (release.yml) and deploys
-# the site. Also runs on demand (Actions > Update the quest list > Run workflow).
+# wago.tools's copy of Forever's newest build). Takes the players' reports you've approved (the "approved" label on
+# a loremaster-reports issue, added after reading it; unlabelled ones wait), builds the quest list and quest pages,
+# checks new quests against Wowhead, makes any new site art, and when anything changed: bumps the patch version,
+# notes it in CHANGELOG.md, commits, tags, releases (release.yml) and deploys the site. Also runs on demand
+# (Actions > Update the quest list > Run workflow).
 #
-# Secrets: CF_API_KEY (CurseForge, for the release), CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (the site),
-# and REPORTS_TOKEN (optional: a token that can close issues in frogwizard-dev/loremaster-reports; without it the
-# reports are still read, and closed by hand).
+# Secrets: CF_API_KEY (CurseForge, for the release); LB_API_TOKEN (a Cloudflare token with Pages edit) and
+# CLOUDFLARE_ACCOUNT_ID, for the site; REPORTS_TOKEN (optional: a token that can close issues in
+# frogwizard-dev/loremaster-reports; without it the reports are still read, and closed by hand).
 name: Update the quest list
 
 on:
@@ -25,6 +26,7 @@ jobs:
     env:
       LOREBOUND_NO_CLIENT: "1"
       GH_TOKEN: ${{ secrets.REPORTS_TOKEN || github.token }}
+      CAN_CLOSE: ${{ secrets.REPORTS_TOKEN != '' && 'yes' || 'no' }} # closing issues needs REPORTS_TOKEN
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,7 +51,7 @@ jobs:
         run: curl -sfL -o sources/Questie/QuestieQuestBlacklist.lua https://raw.githubusercontent.com/Questie/Questie/master/Database/Corrections/QuestieQuestBlacklist.lua
       - name: Quest list (with players' reports)
         working-directory: tools
-        run: python make_lore.py --pull ${{ secrets.REPORTS_TOKEN && '--close' || '' }}
+        run: python make_lore.py --pull
       - name: Forever's objectives from Wowhead (new quests only)
         working-directory: tools
         run: python lore_wowhead.py
@@ -71,6 +73,11 @@ jobs:
           git commit -q -m "Quest list update ${{ steps.version.outputs.tag }}"
           git tag "${{ steps.version.outputs.tag }}"
           git push origin HEAD:main "${{ steps.version.outputs.tag }}"
+      # Closed only once they're committed (with no new version nothing is, and they're read again next week).
+      - name: Close the reports that went in
+        if: steps.version.outputs.tag != '' && env.CAN_CLOSE == 'yes'
+        working-directory: tools
+        run: python make_lore.py --close-pulled
       - uses: actions/setup-node@v4
         if: steps.version.outputs.tag != ''
         with:
@@ -79,7 +86,7 @@ jobs:
         if: steps.version.outputs.tag != ''
         working-directory: site
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.LB_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           npm ci

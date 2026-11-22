@@ -27,11 +27,11 @@ ns.COLORS = {
 local Ring = {}
 
 local function Animate(self, elapsed)
-    self.t = self.t + elapsed
-    local k = math.min(1, self.t / DURATION)
-    local eased = 1 - (1 - k) ^ 3
+    self.spent = self.spent + elapsed
+    local progress = math.min(1, self.spent / DURATION)
+    local eased = 1 - (1 - progress) ^ 3
     self:Draw(self.from + (self.to - self.from) * eased)
-    if k >= 1 then
+    if progress >= 1 then
         self:SetScript("OnUpdate", nil)
         local done = self.onDone
         self.onDone = nil
@@ -39,15 +39,15 @@ local function Animate(self, elapsed)
     end
 end
 
--- Shows the share p (0 to 1). Animated from where it is when asked; onDone runs when it gets there.
-function Ring:SetProgress(p, animate, onDone)
-    p = math.max(0, math.min(1, p or 0))
-    if animate and self:IsVisible() and math.abs(p - (self.shown or 0)) > 0.0005 then
-        self.from, self.to, self.t, self.onDone = self.shown or 0, p, 0, onDone
+-- Shows the share (0 to 1). Animated from where it is when asked; onDone runs when it gets there.
+function Ring:SetProgress(share, animate, onDone)
+    share = math.max(0, math.min(1, share or 0))
+    if animate and self:IsVisible() and math.abs(share - (self.shown or 0)) > 0.0005 then
+        self.from, self.to, self.spent, self.onDone = self.shown or 0, share, 0, onDone
         self:SetScript("OnUpdate", Animate)
     else
         self:SetScript("OnUpdate", nil)
-        self:Draw(p)
+        self:Draw(share)
         if onDone then onDone(self) end
     end
 end
@@ -59,10 +59,10 @@ local function Place(region, ring, share, ahead)
     region:SetPoint("CENTER", ring, "CENTER", ring.radius * math.sin(angle), ring.radius * math.cos(angle))
 end
 
-function Ring:Draw(p)
-    self.shown = p
+function Ring:Draw(share)
+    self.shown = share
     local right, left = self.right, self.left
-    if p <= 0.0005 then
+    if share <= 0.0005 then
         right:Hide()
         left:Hide()
         self.head:Hide()
@@ -75,10 +75,10 @@ function Ring:Draw(p)
     -- Each half-ring starts on the right side and is turned clockwise by (share x a turn - half a turn):
     -- shown through its mask, that leaves exactly 0..share of the ring. (Positive rotation is
     -- counter-clockwise in the game, hence the minus.)
-    local turn = p * TAU - math.pi
+    local turn = share * TAU - math.pi
     right:SetRotation(-math.min(turn, 0))
     right:Show()
-    if p > 0.5 then
+    if share > 0.5 then
         left:SetRotation(-turn)
         left:Show()
     else
@@ -86,13 +86,13 @@ function Ring:Draw(p)
     end
     -- The lighter leading end: a quarter-ring highlight ending at the fill's end, faded in over the
     -- first quarter so it never shows on the track behind the start.
-    self.head:SetRotation(-p * TAU)
-    self.head:SetAlpha(math.min(1, p / 0.25) ^ 2 * 0.85)
+    self.head:SetRotation(-share * TAU)
+    self.head:SetAlpha(math.min(1, share / 0.25) ^ 2 * 0.85)
     self.head:Show()
     self.startCap:Show()
     if self.glyph then self.glyph:Show() end
-    Place(self.endCap, self, p)
-    Place(self.shadow, self, p, 0.05)
+    Place(self.endCap, self, share)
+    Place(self.shadow, self, share, 0.05)
     self.endCap:Show()
     self.shadow:Show()
 end
@@ -147,10 +147,10 @@ function ns.NewRing(parent, size, art, color, glyph)
         half:SetAllPoints()
         -- Clamped to clear: turned, the texture's corners sample outside it.
         half:SetTexture(MEDIA .. "RingHalf" .. number .. small, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-        local m = ring:CreateMaskTexture()
-        m:SetTexture(MEDIA .. mask, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-        m:SetAllPoints(ring)
-        half:AddMaskTexture(m)
+        local side = ring:CreateMaskTexture()
+        side:SetTexture(MEDIA .. mask, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        side:SetAllPoints(ring)
+        half:AddMaskTexture(side)
         half:Hide()
         return half
     end

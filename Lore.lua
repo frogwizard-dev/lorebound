@@ -10,6 +10,7 @@ local _, ns = ...
 -- - nextInChain: the quest after it is done.
 -- - untilDone: it was only there until a quest you've now done.
 -- - exclusiveTo: you did the other quest of the pair (only one of them can ever be done), so both count.
+--   Except another race's version of a class quest (OtherRacesVersion): not for you, unless you took it.
 -- (While the later or other quest is only in your log, this one shows as locked out until it's done.)
 --
 -- Locked out, from the list's links (QuestieDB's rules): cut off from later stages for good.
@@ -38,6 +39,17 @@ local IN_TOTAL = Lore.IN_TOTAL
 local RACE_BIT = { [95] = 32, [96] = 33 }
 local FACTION_BITS = { { 0, 2, 3, 6 }, { 1, 4, 5, 7 } } -- classic races' bits: Alliance, Horde
 
+-- Each race's home by race ID: its starting zone and capital (uiMap IDs; Zephras Isle is the Skyborne's).
+local HOMES = {
+    [1] = { 1429, 1453 }, [2] = { 1411, 1454 }, [3] = { 1426, 1455 }, [4] = { 1438, 1457 },
+    [5] = { 1420, 1458 }, [6] = { 1412, 1456 }, [7] = { 1426, 1455 }, [8] = { 1411, 1454 },
+    [95] = { 2521 }, [96] = { 2521 },
+}
+local ANY_HOME = {}
+for _, maps in pairs(HOMES) do
+    for _, map in ipairs(maps) do ANY_HOME[map] = true end
+end
+
 local PROFESSIONS = {
     [164] = "Blacksmithing", [165] = "Leatherworking", [171] = "Alchemy", [182] = "Herbalism",
     [186] = "Mining", [197] = "Tailoring", [202] = "Engineering", [333] = "Enchanting", [393] = "Skinning",
@@ -61,9 +73,11 @@ local byZone = {}       -- [zone] = { questID, ... }
 local children = {}     -- [questID] = { quests that need it (needsAll) }
 local zoneByName = {}   -- [name] = zone (outdoor zones win, being first)
 local learnedRow = {}   -- [questID] = true: learned in game, not from the list
+local versionOf = {}    -- [questID] = the first quest of the one race's version it's part of (OtherRacesVersion)
+local wantText = {}     -- [questID] = true: its Forever text isn't known (Share.lua asks for it)
 local lowerNames        -- [questID] = name in lower case, made on the first search
 
-local me = {}           -- level, raceBit, faction (1 Alliance, 2 Horde), classBit, skills
+local me = {}           -- level, raceBit, home ({ [uiMap] = true }), faction (1 Alliance, 2 Horde), classBit, skills
 local status = {}
 local passed = {}       -- [questID] = true: skipped, counted done, but the game never marked it (see above)
 local whyCode, whyA, whyB = {}, {}, {}
@@ -85,18 +99,42 @@ local function Faction()
 end
 Lore.Faction = Faction
 
-local function AddTo(list, id)
-    list[#list + 1] = id
-end
-
 local function Index(id, row)
     local zone = row[F.zone]
     byZone[zone] = byZone[zone] or {}
-    AddTo(byZone[zone], id)
+    table.insert(byZone[zone], id)
     for _, need in ipairs(row[F.needsAll] or EMPTY) do
         need = math.abs(need)
         children[need] = children[need] or {}
-        AddTo(children[need], id)
+        table.insert(children[need], id)
+    end
+end
+
+local function Lists(list, id)
+    for _, entry in ipairs(list or EMPTY) do
+        if math.abs(entry) == id then return true end
+    end
+    return false
+end
+
+-- A class quest of a group only one of which can be done, given in a race's home, starts that race's version:
+-- it and the quests after it (nextInChain) while each is a class quest that needs the step before, up to where
+-- the steps are shared: reached from another version too, open without the step before (a breadcrumb's target),
+-- or not a class quest at all (the warlock's Burning Blade Medallion follows any race's way to it).
+local function MarkVersions()
+    for id, row in pairs(quests) do
+        if row[F.classes] and row[F.exclusiveTo] and ANY_HOME[row[F.map]] then
+            local at, before, steps, shared = id, nil, 0, false
+            while at and quests[at] and steps < 40 do
+                local step = quests[at]
+                if before and not (step[F.classes] and (Lists(step[F.needsAny], before) or Lists(step[F.needsAll], before))) then
+                    shared = true
+                end
+                local mark = versionOf[at]
+                versionOf[at] = not shared and (mark == nil or mark == id) and id or false
+                at, before, steps = step[F.nextInChain], at, steps + 1
+            end
+        end
     end
 end
 
@@ -122,11 +160,13 @@ function Lore.Init(data)
         end
     end
     for _, id in ipairs(data.skip or EMPTY) do skip[id] = true end
-    data.horde, data.skip = nil, nil
+    for _, id in ipairs(data.wantText or EMPTY) do wantText[id] = true end
+    data.horde, data.skip, data.wantText = nil, nil, nil
     for i, zone in ipairs(zones) do
         if not zoneByName[zone[1]] then zoneByName[zone[1]] = i end
     end
     for id, row in pairs(quests) do Index(id, row) end
+    MarkVersions()
     local learned = ns.db.learned
     for id, entry in pairs(learned) do
         if quests[id] or skip[id] then
@@ -169,7 +209,7 @@ function Lore.AddLearned(id, entry)
             levelRange[row[F.zone]] = nil
             row[F.zone] = zone
             byZone[zone] = byZone[zone] or {}
-            AddTo(byZone[zone], id)
+            table.insert(byZone[zone], id)
         end
     else
         row = { zone, level, nil, name }
@@ -226,6 +266,11 @@ local function Facts()
     me.level = UnitLevel("player") or 1
     local _, _, raceID = UnitRace("player")
     me.raceBit = raceID and (raceID <= 31 and raceID - 1 or RACE_BIT[raceID]) or nil
+    me.home = nil
+    for _, map in ipairs(HOMES[raceID] or EMPTY) do
+        me.home = me.home or {}
+        me.home[map] = true
+    end
     me.faction = Faction()
     local _, _, classID = UnitClass("player")
     me.classBit = classID and classID - 1 or nil
@@ -241,6 +286,14 @@ local function RaceOK(mask)
         if not Has(mask, bit) then return false end
     end
     return true
+end
+
+-- Open to this character by race, class and side alone.
+local function ForMe(row)
+    if row[F.races] and not RaceOK(row[F.races]) then return false end
+    if row[F.classes] and me.classBit and not Has(row[F.classes], me.classBit) then return false end
+    local faction = row[F.faction]
+    return not (faction and me.faction and faction ~= me.faction)
 end
 
 -- Your standing with a faction and its name; nil standing when you haven't met it.
@@ -290,7 +343,7 @@ local function Name(id)
     return row and row[F.name] or ("quest " .. id)
 end
 
--- Whether you've got past a quest: it's done, or a quest that needs it done is.
+-- Past a quest: it's done, or a quest that needs it done is.
 local function Reached(id, depth)
     if IsDone(id) then return true end
     local known = reached[id]
@@ -309,16 +362,44 @@ end
 
 local Status
 
+-- Another race's version of a class quest (MarkVersions): Call of Earth in Durotar, in Mulgore and on Zephras
+-- Isle, only one of which can be done. Left out, not counted done, when the version starts in another race's home
+-- and the group has one in yours that's open to you, unless you took it.
+-- A quest of the list done or in your log, not counting another version's (Call of Earth's second step needs
+-- either race's first).
+local function Begun(list, first)
+    for _, need in ipairs(list or EMPTY) do
+        need = math.abs(need)
+        local version = versionOf[need]
+        if not (version and version ~= first) and (IsDone(need) or active[need]) then return true end
+    end
+    return false
+end
+
+local function OtherRacesVersion(id, row)
+    local first = versionOf[id]
+    if not first or not me.home or me.home[row[F.map]] then return false end
+    local firstRow = quests[first]
+    if me.home[firstRow[F.map]] or IsDone(first) or active[first] then return false end
+    -- On your way to it some other way (a quest it needs is done or in your log): yours too.
+    if Begun(row[F.needsAny], first) or Begun(row[F.needsAll], first) then return false end
+    for _, other in ipairs(firstRow[F.exclusiveTo]) do
+        local otherRow = quests[other]
+        if otherRow and me.home[otherRow[F.map]] and ForMe(otherRow) then return true end
+    end
+    return false
+end
+
 -- Not to be had: hidden, locked out, or skipped (the game never marked it done, so what needs it can't
 -- follow).
 local function Settled(id)
-    local s = Status(id)
-    if s == DONE and passed[id] then return LOCKED end
-    return s
+    local state = Status(id)
+    if state == DONE and passed[id] then return LOCKED end
+    return state
 end
 
-local function Gone(s)
-    return s == HIDDEN or s == LOCKED
+local function Gone(state)
+    return state == HIDDEN or state == LOCKED
 end
 
 -- A needsAll entry: "met", "open" (still to do), "locked" or "hidden", and the quest that decides it.
@@ -329,14 +410,14 @@ local function Entry(need)
     for _, other in ipairs(partners) do
         if IsDone(other) then return "met", other end
     end
-    local s = Settled(id)
-    if not Gone(s) then return "open", id end
+    local state = Settled(id)
+    if not Gone(state) then return "open", id end
     for _, other in ipairs(partners) do
-        local o = Settled(other)
-        if not Gone(o) then return "open", other end
-        if o == LOCKED then s = LOCKED end
+        local otherState = Settled(other)
+        if not Gone(otherState) then return "open", other end
+        if otherState == LOCKED then state = LOCKED end
     end
-    return s == LOCKED and "locked" or "hidden", id
+    return state == LOCKED and "locked" or "hidden", id
 end
 
 -- The status, and why (a code and its arguments) for locked out and later.
@@ -354,6 +435,7 @@ local function Work(id, row)
         short = rank < (skill[2] or 0)
     end
     if active[id] then return ACTIVE end
+    if OtherRacesVersion(id, row) then return HIDDEN end
 
     -- Prerequisites that rule it out, and the first one still to do.
     local waitFor
@@ -371,10 +453,10 @@ local function Work(id, row)
                 met = true
                 break
             end
-            local s = Settled(need)
-            if s == LOCKED then
+            local needState = Settled(need)
+            if needState == LOCKED then
                 locked = locked or need
-            elseif s ~= HIDDEN then
+            elseif needState ~= HIDDEN then
                 open = open or need
             end
         end
@@ -425,9 +507,9 @@ local function Work(id, row)
     end
     local parent = row[F.parent]
     if parent then
-        local s = Status(parent)
-        if s == HIDDEN then return HIDDEN end
-        if s == DONE or s == LOCKED then return LOCKED, ONLY_WHILE, parent end
+        local parentState = Status(parent)
+        if parentState == HIDDEN then return HIDDEN end
+        if parentState == DONE or parentState == LOCKED then return LOCKED, ONLY_WHILE, parent end
     end
 
     -- Not yet.
@@ -445,10 +527,10 @@ local function Work(id, row)
 end
 
 Status = function(id)
-    local s = status[id]
-    if s then
-        if s == VISITING then return AVAILABLE end -- a loop in the links: don't let it lock anything
-        return s
+    local known = status[id]
+    if known then
+        if known == VISITING then return AVAILABLE end -- a loop in the links: don't let it lock anything
+        return known
     end
     local row = quests[id]
     if not row then return HIDDEN end
@@ -457,12 +539,11 @@ Status = function(id)
         return DONE
     end
     status[id] = VISITING
-    local code, a, b
-    s, code, a, b = Work(id, row)
-    status[id] = s
-    if s == DONE then passed[id] = true end
+    local state, code, a, b = Work(id, row)
+    status[id] = state
+    if state == DONE then passed[id] = true end
     if code then whyCode[id], whyA[id], whyB[id] = code, a, b end
-    return s
+    return state
 end
 
 local function FactionName(factionID)
@@ -470,23 +551,33 @@ local function FactionName(factionID)
     return name or "a faction you haven't met"
 end
 
+-- Each reason's words: "%s" is the quest it names, apart from the levels, standings and skills below.
+local WHY = {
+    [NEEDS_GONE] = "Needs %s, which you can't get any more.",
+    [TOOK] = "You did %s instead (only one of the pair can be done). Counted as done.",
+    [HOLDING] = "You have %s in your log instead: abandon it to get this one back.",
+    [LEADS] = "It leads to %s, which you've picked up: counted done once you finish that.",
+    [PAST] = "You're past it: %s is in your log. Counted done once you finish that.",
+    [ONLY_WHILE] = "Only while %s is in your log.",
+    [AFTER] = "After %s",
+    [WHILE] = "While %s is in your log",
+    [SKIP_LEADS] = "Skipped: you went straight to %s. Counted as done.",
+    [SKIP_PAST] = "Skipped: you've done %s, which comes after it. Counted as done.",
+    [SKIP_UNTIL] = "No longer needed: %s is done. Counted as done.",
+    [MAX_LEVEL] = "Only up to level %d.",
+    [LEVEL] = "Level %d",
+    [MAX_REP] = "Only below %s with %s.",
+    [REP] = "%s with %s",
+    [SKILL] = "%s %d",
+}
+
 local function Why(code, a, b)
-    if code == NEEDS_GONE then return ("Needs %s, which you can't get any more."):format(Name(a)) end
-    if code == TOOK then return ("You did %s instead (only one of the pair can be done). Counted as done."):format(Name(a)) end
-    if code == HOLDING then return ("You have %s in your log instead: abandon it to get this one back."):format(Name(a)) end
-    if code == LEADS then return ("It leads to %s, which you've picked up: counted done once you finish that."):format(Name(a)) end
-    if code == PAST then return ("You're past it: %s is in your log. Counted done once you finish that."):format(Name(a)) end
-    if code == MAX_LEVEL then return ("Only up to level %d."):format(a) end
-    if code == MAX_REP then return ("Only below %s with %s."):format(StandingName(b), FactionName(a)) end
-    if code == ONLY_WHILE then return ("Only while %s is in your log."):format(Name(a)) end
-    if code == AFTER then return ("After %s"):format(Name(a)) end
-    if code == WHILE then return ("While %s is in your log"):format(Name(a)) end
-    if code == LEVEL then return ("Level %d"):format(a) end
-    if code == REP then return ("%s with %s"):format(StandingName(b), FactionName(a)) end
-    if code == SKILL then return ("%s %d"):format(PROFESSIONS[a] or "Skill", b or 0) end
-    if code == SKIP_LEADS then return ("Skipped: you went straight to %s. Counted as done."):format(Name(a)) end
-    if code == SKIP_PAST then return ("Skipped: you've done %s, which comes after it. Counted as done."):format(Name(a)) end
-    if code == SKIP_UNTIL then return ("No longer needed: %s is done. Counted as done."):format(Name(a)) end
+    local words = WHY[code]
+    if not words then return nil end
+    if code == MAX_LEVEL or code == LEVEL then return words:format(a) end
+    if code == MAX_REP or code == REP then return words:format(StandingName(b), FactionName(a)) end
+    if code == SKILL then return words:format(PROFESSIONS[a] or "Skill", b or 0) end
+    return words:format(Name(a))
 end
 
 ------------------------------------------------------------------------------
@@ -506,34 +597,34 @@ function Lore.Refresh()
     Facts()
     ReadLog()
     for zone in ipairs(zones) do
-        local c = counts[zone]
-        if c then
-            c[1], c[2], c[3] = 0, 0, 0
+        local tally = counts[zone]
+        if tally then
+            tally[1], tally[2], tally[3] = 0, 0, 0
         else
             counts[zone] = { 0, 0, 0 }
         end
     end
     for id, row in pairs(quests) do
-        local s = Status(id)
-        local c = counts[row[F.zone]]
-        if s == DONE then
-            c[1], c[2] = c[1] + 1, c[2] + 1
-        elseif s == LOCKED then
-            c[3] = c[3] + 1
-        elseif s ~= HIDDEN then
-            c[1] = c[1] + 1
+        local state = Status(id)
+        local tally = counts[row[F.zone]]
+        if state == DONE then
+            tally[1], tally[2] = tally[1] + 1, tally[2] + 1
+        elseif state == LOCKED then
+            tally[3] = tally[3] + 1
+        elseif state ~= HIDDEN then
+            tally[1] = tally[1] + 1
         end
     end
     for group = 1, math.max(#groups, OTHER_GROUP) do
-        local g = groupCounts[group]
-        if g then g[1], g[2] = 0, 0 else groupCounts[group] = { 0, 0 } end
+        local groupTally = groupCounts[group]
+        if groupTally then groupTally[1], groupTally[2] = 0, 0 else groupCounts[group] = { 0, 0 } end
     end
     total[1], total[2] = 0, 0
-    for zone, c in pairs(counts) do
+    for zone, tally in pairs(counts) do
         local group = zones[zone][2]
-        local g = groupCounts[group]
-        g[1], g[2] = g[1] + c[1], g[2] + c[2]
-        if IN_TOTAL[group] then total[1], total[2] = total[1] + c[1], total[2] + c[2] end
+        local groupTally = groupCounts[group]
+        groupTally[1], groupTally[2] = groupTally[1] + tally[1], groupTally[2] + tally[2]
+        if IN_TOTAL[group] then total[1], total[2] = total[1] + tally[1], total[2] + tally[2] end
     end
     Lore.fresh = true
 end
@@ -546,25 +637,25 @@ function Lore.TurnedIn(id)
     if not row then return nil end
     local zone = row[F.zone]
     local group = zones[zone][2]
-    local c, g = counts[zone], groupCounts[group]
+    local tally, groupTally = counts[zone], groupCounts[group]
     return {
         id = id, zone = zone, group = group, counted = IN_TOTAL[group],
-        zoneDone = c[2], zoneTotal = c[1], groupDone = g[2], groupTotal = g[1],
+        zoneDone = tally[2], zoneTotal = tally[1], groupDone = groupTally[2], groupTotal = groupTally[1],
         allDone = total[2], allTotal = total[1],
     }
 end
 
 -- Done, total and locked out for a zone.
 function Lore.Count(zone)
-    local c = counts[zone]
-    if not c then return 0, 0, 0 end
-    return c[2], c[1], c[3]
+    local tally = counts[zone]
+    if not tally then return 0, 0, 0 end
+    return tally[2], tally[1], tally[3]
 end
 
 function Lore.GroupCount(group)
-    local g = groupCounts[group]
-    if not g then return 0, 0 end
-    return g[2], g[1]
+    local groupTally = groupCounts[group]
+    if not groupTally then return 0, 0 end
+    return groupTally[2], groupTally[1]
 end
 
 function Lore.TotalCount()
@@ -573,10 +664,10 @@ end
 
 -- The status and, for locked out and later, why (as text).
 function Lore.StatusOf(id)
-    local s = Status(id)
+    local state = Status(id)
     local code = whyCode[id]
-    if not code then return s end
-    return s, Why(code, whyA[id], whyB[id])
+    if not code then return state end
+    return state, Why(code, whyA[id], whyB[id])
 end
 
 function Lore.Row(id)
@@ -610,6 +701,11 @@ end
 function Lore.IsPassed(id)
     Status(id)
     return passed[id] == true
+end
+
+-- Whether the list lacks this quest's Forever text (changed or new in Forever, or learned in game).
+function Lore.WantsText(id)
+    return wantText[id] or learnedRow[id] or false
 end
 
 function Lore.IsLearned(id)

@@ -4,7 +4,8 @@ local _, ns = ...
 -- objectives, story, rewards (the game's item slots, with their tooltips) and what the quest giver says when
 -- you come back and when you hand it in; beside it who gives and takes it and where, its level and side, and
 -- its chain. Opened from an opened quest's "Quest page" button (or A again on a controller); the cross or B
--- closes it. The text is Lorebound_Text's, loaded the first time, and what the game showed you comes first.
+-- closes it. The text is from the Lorebound_Text part for its group (ns.QuestText), and what the game showed you
+-- comes first.
 
 local F, Lore = ns.F, ns.Lore
 local QuestPage = {}
@@ -97,7 +98,7 @@ local function Slot()
 end
 
 -- Lays out one quest's page: a cursor runs down the parchment.
-local function Fill(id, keepScroll)
+local function Layout(id, keepScroll)
     for _, list in ipairs({ pool.text, pool.slot }) do
         for _, region in ipairs(list) do region:Hide() end
     end
@@ -123,8 +124,7 @@ local function Fill(id, keepScroll)
     end
 
     local row = Lore.Row(id)
-    local known = ns.LoadText()
-    local details = known and known[id] or {}
+    local details = not Lore.IsLearned(id) and ns.QuestText(id, select(2, Lore.Zone(row[F.zone]))) or {}
     local saved = ns.db.text[id]
 
     Heading("Objectives")
@@ -179,9 +179,10 @@ local function Fill(id, keepScroll)
         if rewards.sp then Paragraphs("A spell is cast on you when you hand it in.") end
     end
 
-    if details.p then
+    local progress = (saved and saved[4]) or details.p
+    if progress then
         Heading("When you come back")
-        Paragraphs(Words(details.p))
+        Paragraphs(Words(progress))
     end
     local completion = (saved and saved[3]) or details.c
     if completion then
@@ -191,10 +192,15 @@ local function Fill(id, keepScroll)
 
     local note
     if not (description or completion or rewards) then
-        note = "This quest's story isn't known yet. Read it at the quest giver and Lorebound keeps it here."
+        note = "This quest's story isn't known yet. Read it at the quest giver and Lorebound keeps it here: share it"
+            .. " from the overview and it's here for everyone."
     elseif not (saved and saved[1]) then
-        note = details.k and "Classic's text: Forever's objective matches it word for word."
-            or "Classic's text, not yet checked against Forever."
+        if details.s then
+            note = "Forever's own text, as players saw it in game."
+        else
+            note = details.k and "Classic's text: Forever's objective matches it word for word."
+                or "Classic's text, not yet checked against Forever."
+        end
     end
     if note then Paragraphs(note, "GameFontDisableSmall") end
     view.child:SetHeight(math.max(1, y))
@@ -209,6 +215,17 @@ local function Place(map, x, y)
     if not map then return "" end
     local info = C_Map.GetMapInfo(map)
     return ("\n|cff9a9a9a%s %s, %s|r"):format(info and info.name or "", x or "?", y or "?")
+end
+
+-- A chain's quests (by its first quest), in step order.
+local function ChainSteps(first)
+    local steps = {}
+    for _, other in ipairs(Lore.ListIds()) do
+        local chain = Lore.Row(other)[F.chain]
+        if chain and chain[1] == first then steps[#steps + 1] = other end
+    end
+    table.sort(steps, function(a, b) return Lore.Row(a)[F.chain][2] < Lore.Row(b)[F.chain][2] end)
+    return steps
 end
 
 local function ChainRow(i)
@@ -240,8 +257,8 @@ local function Side(id)
     end
     Fact("Start", row[F.starter] and (row[F.starter] .. Place(row[F.map], row[F.x], row[F.y])))
     Fact("End", row[F.finisher])
-    local level, min = row[F.level], row[F.minLevel]
-    Fact("Level", level and level > 0 and (min and ("%d, from level %d"):format(level, min) or tostring(level)))
+    local level, minLevel = row[F.level], row[F.minLevel]
+    Fact("Level", level and level > 0 and (minLevel and ("%d, from level %d"):format(level, minLevel) or tostring(level)))
     Fact("Zone", (Lore.Zone(row[F.zone])))
     Fact("Quest ID", tostring(id))
     view.facts:SetText(table.concat(facts, "\n\n"))
@@ -251,12 +268,7 @@ local function Side(id)
     local chain = row[F.chain]
     view.chainHead:SetShown(chain ~= nil)
     if not chain then return end
-    local steps = {}
-    for _, other in ipairs(Lore.ListIds()) do
-        local c = Lore.Row(other)[F.chain]
-        if c and c[1] == chain[1] then steps[#steps + 1] = other end
-    end
-    table.sort(steps, function(a, b) return Lore.Row(a)[F.chain][2] < Lore.Row(b)[F.chain][2] end)
+    local steps = ChainSteps(chain[1])
     view.chainHead:SetText(("Quest chain  |cff9a9a9a%d quests|r"):format(#steps))
     -- As many rows as fit the column under the facts, around the quest shown.
     local room = view.side:GetHeight() - view.facts:GetStringHeight() - 14 - 22 - 18 - 18 - 36
@@ -354,7 +366,7 @@ local function Build()
     view.scroll:SetScript("OnSizeChanged", function(scroll, width)
         view.child:SetWidth(width)
         if current and view:IsShown() then
-            Fill(current, true)
+            Layout(current, true)
             Side(current)
         end
     end)
@@ -368,13 +380,13 @@ function QuestPage.Show(id)
     if not view then Build() end
     current = id
     view.title:SetText(Lore.Name(id) or ("Quest " .. id))
-    local s, why = Lore.StatusOf(id)
-    ns.Journal.SetStatusIcon(view.icon, s)
-    view.status:SetText(ns.Journal.Summary(id, s, why))
+    local state, why = Lore.StatusOf(id)
+    ns.Journal.SetStatusIcon(view.icon, state)
+    view.status:SetText(ns.Journal.Summary(id, state, why))
     view.side:SetPoint("BOTTOMRIGHT", -14, ns.GamepadUI() and 36 or 14) -- clear of the controller's hint bar
     view.child:SetWidth(math.max(1, view.scroll:GetWidth()))
     view:Show()
-    Fill(id)
+    Layout(id)
     Side(id)
     view.hint:SetText(ns.GamepadUI() and "D-pad up/down: scroll   left/right: the chain\nX: the quest giver   B: back" or "")
     ns.Pad.Mark()
@@ -394,19 +406,16 @@ function QuestPage.Scroll(step)
     scroll:SetVerticalScroll(math.max(0, math.min(most, scroll:GetVerticalScroll() + step)))
 end
 
--- The chain's step before or after the one shown.
-function QuestPage.Step(step)
+-- The chain's nearest step before (direction -1) or after (1) the one shown.
+function QuestPage.Step(direction)
     local chain = current and Lore.Row(current)[F.chain]
     if not chain then return end
-    local best
-    for _, other in ipairs(Lore.ListIds()) do
-        local c = Lore.Row(other)[F.chain]
-        if c and c[1] == chain[1] and (c[2] - chain[2]) * step > 0
-            and (not best or math.abs(c[2] - chain[2]) < math.abs(Lore.Row(best)[F.chain][2] - chain[2])) then
-            best = other
-        end
+    local steps = ChainSteps(chain[1])
+    local from, to = 1, #steps
+    if direction < 0 then from, to = #steps, 1 end
+    for i = from, to, direction < 0 and -1 or 1 do
+        if (Lore.Row(steps[i])[F.chain][2] - chain[2]) * direction > 0 then return QuestPage.Show(steps[i]) end
     end
-    if best then QuestPage.Show(best) end
 end
 
 -- Shown again with fresh statuses and quest log progress (the journal's refresh after quest events).

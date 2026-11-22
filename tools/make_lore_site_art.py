@@ -1,5 +1,5 @@
 """The game's own art for Lorebound's site (lb.frogwizard.net): each zone's map, fully revealed, and each
-dungeon's and raid's journal painting, as small WebP files in loremaster-report/public/art/; with the
+dungeon's and raid's journal painting, as small WebP files in site/public/art/; with the
 addon's badge frames and masks (badge-<shape>.png) and the icons its class and profession badges show
 (icon-<name>.webp, listed in icons.json by zone), so the site's badges are the journal's own.
 
@@ -12,8 +12,8 @@ made are kept unless --force.
 import io
 import json
 import math
-import struct
 import os
+import re
 import sys
 
 import lupa
@@ -21,7 +21,7 @@ from PIL import Image
 
 import db2
 from game_files import GameFiles
-from make_lore import blp_bytes, game_file, painted_rows
+from make_lore import blp_bytes
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "..", "Lorebound_Data", "Data.lua")
@@ -37,8 +37,8 @@ BADGE_LUA = os.path.join(HERE, "..", "Badge.lua")
 SHAPES = ("Medal", "Shield", "Crest", "Hex")
 SEAL_ICON = "INV_Misc_Book_09"  # the Lorebound Seal (Badge.lua)
 ICON_SIZE = 64
-PARCHMENT_BOX = (25, 84, 321, 418)
-PLATE_BOX = (11, 11, 117, 53)  # the plate's drawn part of its 128 x 64 file  # the page inside the quest window (384 x 512), torn edges included
+PARCHMENT_BOX = (25, 84, 321, 418)  # the page inside the quest window (384 x 512), torn edges included
+PLATE_BOX = (11, 11, 117, 53)       # the plate's drawn part of its 128 x 64 file
 
 
 def load_data():
@@ -46,10 +46,10 @@ def load_data():
     with open(DATA, encoding="utf-8") as f:
         lua.execute(f.read())
     data = lua.globals().LoreboundData
-    zones = [tuple(z[i] for i in range(1, 5)) for z in data.zones.values()]
+    zones = [tuple(zone[i] for i in range(1, 5)) for zone in data.zones.values()]
     reveal = {}
     for art, overlays in data.reveal.items():
-        reveal[art] = [[o[i] for i in range(1, len(o) + 1)] for o in overlays.values()]
+        reveal[art] = [[overlay[i] for i in range(1, len(overlay) + 1)] for overlay in overlays.values()]
     return zones, reveal
 
 
@@ -61,8 +61,8 @@ def blp(casc, fid, name=None):
 def parchment(casc):
     """The page of Classic's quest window: its four corner textures (QuestFrameTemplates.xml's
     UI-QuestGreeting-*) put together as the game draws them, and the parchment cut out of the frame."""
-    corners = {n: blp(casc, None, "interface/questframe/ui-questgreeting-%s.blp" % n)
-               for n in ("topleft", "topright", "botleft", "botright")}
+    corners = {corner: blp(casc, None, "interface/questframe/ui-questgreeting-%s.blp" % corner)
+               for corner in ("topleft", "topright", "botleft", "botright")}
     left, top = corners["topleft"].size
     window = Image.new("RGBA", (left + corners["topright"].width, top + corners["botleft"].height))
     window.paste(corners["topleft"], (0, 0))
@@ -99,28 +99,28 @@ class Maps:
         layer = art and self.layer.get(self.style_of.get(art))
         if not layer or art not in self.tiles:
             return None
-        width, height, tw, th = layer
+        width, height, tile_w, tile_h = layer
         canvas = Image.new("RGBA", (width, height), (0, 0, 0, 255))
         for row, col, fid in self.tiles[art]:
             tile = blp(self.casc, fid)
             if tile:
-                canvas.alpha_composite(tile.crop((0, 0, min(tw, width - col * tw), min(th, height - row * th))),
-                                       (col * tw, row * th))
+                canvas.alpha_composite(tile.crop((0, 0, min(tile_w, width - col * tile_w), min(tile_h, height - row * tile_h))),
+                                       (col * tile_w, row * tile_h))
         for overlay in reveal.get(art, []):
-            ow, oh, x, y, files = overlay[0], overlay[1], overlay[2], overlay[3], overlay[4:]
-            cols, rows = math.ceil(ow / tw), math.ceil(oh / th)
-            for r in range(rows):
-                for c in range(cols):
-                    index = r * cols + c
+            overlay_w, overlay_h, x, y, files = overlay[0], overlay[1], overlay[2], overlay[3], overlay[4:]
+            cols, rows = math.ceil(overlay_w / tile_w), math.ceil(overlay_h / tile_h)
+            for tile_row in range(rows):
+                for tile_col in range(cols):
+                    index = tile_row * cols + tile_col
                     tile = index < len(files) and blp(self.casc, files[index])
                     if not tile:
                         continue
-                    pw = tw if c < cols - 1 else ow - tw * (cols - 1)
-                    ph = th if r < rows - 1 else oh - th * (rows - 1)
-                    px, py = x + tw * c, y + th * r
-                    part = tile.crop((0, 0, min(pw, width - px), min(ph, height - py)))
+                    part_w = tile_w if tile_col < cols - 1 else overlay_w - tile_w * (cols - 1)
+                    part_h = tile_h if tile_row < rows - 1 else overlay_h - tile_h * (rows - 1)
+                    part_x, part_y = x + tile_w * tile_col, y + tile_h * tile_row
+                    part = tile.crop((0, 0, min(part_w, width - part_x), min(part_h, height - part_y)))
                     if part.width > 0 and part.height > 0:
-                        canvas.alpha_composite(part, (px, py))
+                        canvas.alpha_composite(part, (part_x, part_y))
         return canvas.convert("RGB")
 
 
@@ -130,7 +130,6 @@ def save(image, name):
 
 def zone_icons():
     """Badge.lua's ZONE_ICONS: { zone name: icon file name }, read from the addon so there's one list."""
-    import re
     source = open(BADGE_LUA, encoding="utf-8").read()
     block = source[source.index("local ZONE_ICONS = {"):]
     block = block[:block.index("\n}")]
@@ -140,8 +139,6 @@ def zone_icons():
 
 def badges_and_icons(casc):
     """The badge frames and masks as PNG, and each class and profession badge's icon (plus the Seal's)."""
-    import json
-    import re
     for shape in SHAPES:
         for suffix in ("", "Mask"):
             Image.open(os.path.join(MEDIA, "Badge%s%s.tga" % (shape, suffix))).save(
@@ -168,9 +165,9 @@ def main():
     zones, reveal = load_data()
     casc = GameFiles()
     maps = Maps(casc)
-    ui_maps = sorted({z[2] for z in zones if z[2] and not z[3]} | set(EXTRA_MAPS))  # dungeons show their painting
-    journals = sorted({z[3] for z in zones if isinstance(z[3], int)})
-    paintings = [z[3] for z in zones if z[3] is not None and not isinstance(z[3], int)]
+    ui_maps = sorted({zone[2] for zone in zones if zone[2] and not zone[3]} | set(EXTRA_MAPS))  # dungeons show their painting
+    journals = sorted({zone[3] for zone in zones if isinstance(zone[3], int)})
+    paintings = [zone[3] for zone in zones if zone[3] is not None and not isinstance(zone[3], int)]
     made = kept = missing = 0
     for ui_map in ui_maps:
         name = "map-%d.webp" % ui_map
@@ -205,7 +202,7 @@ def main():
             image = Image.open(os.path.join(HERE, "..", texture.replace("Interface\\AddOns\\", "") + ".tga"))
             image = image.crop((0, 0, image.width, rows))
         else:  # the game's own file, shown at width x rows of its width x height
-            image = blp_bytes(game_file(casc, fid))
+            image = blp_bytes(casc.read_fdid(fid))
             scale = image.height / height
             image = image.crop((0, round(top * scale), image.width, round((top + rows) * scale)))
             image = image.resize((round(image.height * width / rows), image.height))
@@ -214,7 +211,7 @@ def main():
     parchment(casc)
     icons = badges_and_icons(casc)
     print("badge frames and %d icons" % icons)
-    size = sum(os.path.getsize(os.path.join(OUT, f)) for f in os.listdir(OUT))
+    size = sum(os.path.getsize(os.path.join(OUT, file_name)) for file_name in os.listdir(OUT))
     print("site art: %d made, %d kept, %d without art; %d KB in all" % (made, kept, missing, size // 1024))
 
 

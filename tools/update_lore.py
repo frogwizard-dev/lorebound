@@ -1,14 +1,15 @@
-"""Lorebound's whole data update in one go: players' reports in, the quest list built and checked, the site's
-art and quest list out, the addon's data copied into the game and the site deployed.
+"""Lorebound's whole data update in one go on this PC: players' reports in, the quest list built and checked, the
+quest pages filled, the site's art and quest list out, the addon's data copied into the game and the site deployed.
+(The weekly GitHub update, .github/workflows/update.yml, does the same and releases instead of syncing.)
 
-    python update_lore.py            # from _tools
+    python update_lore.py            # in tools/
     python update_lore.py --close    # also closes the report issues it read, once the list is built
 
-Steps: make_lore.py --pull (open quest-report issues saved, each reported quest checked against the game's
-quest list and Wowhead; new quest IDs in the client named in lore_reports/new-in-client.txt), then
-make_lore_site_art.py (only art not made before), sync_addon.py Lorebound_Data, and `npm run deploy` in
-loremaster-report. Stops at the first step that fails. Needs `gh` signed in as frogwizard-dev and wrangler
-logged in.
+Steps: make_lore.py --pull (the quest reports you've approved, each checked against the game's quest list and
+Wowhead; new quest IDs in the client named in lore_reports/new-in-client.txt), lore_wowhead.py (Forever's
+objectives for new quests), make_lore.py again (the pages with that text), make_lore_site_art.py (only art not
+made before), _tools/sync_addon.py for Lorebound_Data and the three Lorebound_Text parts, and `npm run deploy` in site/. Stops at the first
+step that fails. Needs `gh` signed in as frogwizard-dev and wrangler logged in.
 """
 import os
 import subprocess
@@ -34,7 +35,8 @@ def main():
     run("quest pages", [python, "make_lore.py"])  # again, now Wowhead's text is in for the new quests
     run("site art", [python, "make_lore_site_art.py"])
     if os.path.exists(SYNC):
-        run("addon data into the game", [python, SYNC, "Lorebound_Data", "Lorebound_Text"])
+        run("addon data into the game", [python, SYNC, "Lorebound_Data", "Lorebound_Text", "Lorebound_Text_EasternKingdoms",
+                                         "Lorebound_Text_Kalimdor"])
     run("site deploy", ["npm", "run", "deploy"], cwd=SITE)
     for name in ("needs-a-look.txt", "new-in-client.txt"):
         path = os.path.join(HERE, "lore_reports", name)

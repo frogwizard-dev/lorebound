@@ -28,8 +28,8 @@ export async function rateLimited(env, ip, kind, { perDay, cooldownMs }) {
   return null
 }
 
-// lb.frogwizard.net is the site; lm.frogwizard.net (its name before the rename) sends visitors on to it.
-const ALLOWED_HOSTNAMES = new Set(['lb.frogwizard.net', 'lm.frogwizard.net', 'frogwizard.net', 'www.frogwizard.net'])
+// The site's own addresses (loremaster-report is the Pages project's name, kept from before the rename).
+const ALLOWED_HOSTNAMES = new Set(['lb.frogwizard.net', 'frogwizard.net', 'www.frogwizard.net'])
 
 // Browsers' cross-site posts are refused; curl can fake Origin, which the rate limits and checks cover.
 export function allowedOrigin(request) {

@@ -1,6 +1,6 @@
 local _, ns = ...
 
--- The journal (/lore): zones down the left, each with its own small ring, and on the right the page you
+-- The journal (/lb): zones down the left, each with its own small ring, and on the right the page you
 -- pick. A zone's page has three nested rings over the zone's own map art (the zone, its continent or
 -- group, the whole Lorebound count) and its quests below: in your log, available now, coming up (and
 -- what for), done, and the ones you're locked out of with the reason (hidden until asked for). Opening
@@ -39,7 +39,7 @@ local bodies = {}       -- [questID] = an opened quest's text, until the next re
 local searchTimer       -- the search waits for a pause in typing
 local expanded = {}     -- [questID] = true: opened in the list
 local events = CreateFrame("Frame")
-local pending           -- a coalesced refresh
+local refreshTimer           -- a coalesced refresh
 
 local SECTIONS = {
     { Lore.ACTIVE, "In your quest log" },
@@ -58,13 +58,13 @@ local SHOWN_BY_FILTER = {
 -- Small helpers
 ------------------------------------------------------------------------------
 
-local function Share(done, total)
+local function Fraction(done, total)
     if total <= 0 then return 0 end
     return done / total
 end
 
 local function Percent(done, total)
-    return ("%d%%"):format(math.floor(Share(done, total) * 100))
+    return ("%d%%"):format(math.floor(Fraction(done, total) * 100))
 end
 
 local function Levels(zone)
@@ -82,16 +82,16 @@ local function Fill(text)
     return (text:gsub("%$[Bb]", "\n"):gsub("%$[Nn]", you[1]):gsub("%$[Cc]", you[2]):gsub("%$[Rr]", you[3]))
 end
 
-local function QuestColor(id, s)
-    if s == Lore.DONE then return 0.55, 0.78, 0.55 end
-    if s == Lore.LOCKED then return 0.78, 0.36, 0.36 end
-    if s == Lore.LATER then return 0.62, 0.62, 0.62 end
-    if s == Lore.ACTIVE then return 1, 0.82, 0 end
+local function QuestColor(id, state)
+    if state == Lore.DONE then return 0.55, 0.78, 0.55 end
+    if state == Lore.LOCKED then return 0.78, 0.36, 0.36 end
+    if state == Lore.LATER then return 0.62, 0.62, 0.62 end
+    if state == Lore.ACTIVE then return 1, 0.82, 0 end
     local row = Lore.Row(id)
     local level = row and row[F.level]
     if level and level > 0 and GetQuestDifficultyColor then
-        local c = GetQuestDifficultyColor(level)
-        if c then return c.r, c.g, c.b end
+        local color = GetQuestDifficultyColor(level)
+        if color then return color.r, color.g, color.b end
     end
     return 1, 0.82, 0
 end
@@ -104,18 +104,18 @@ local function SetAtlasOr(icon, atlas, file)
     end
 end
 
-local function SetStatusIcon(icon, s)
+local function SetStatusIcon(icon, state)
     icon:SetDesaturated(false)
     icon:SetAlpha(1)
-    if s == Lore.DONE then
+    if state == Lore.DONE then
         icon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
-    elseif s == Lore.LOCKED then
+    elseif state == Lore.LOCKED then
         icon:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
-    elseif s == Lore.ACTIVE then
+    elseif state == Lore.ACTIVE then
         SetAtlasOr(icon, "QuestTurnin", "Interface\\GossipFrame\\ActiveQuestIcon")
     else
         SetAtlasOr(icon, "QuestNormal", "Interface\\GossipFrame\\AvailableQuestIcon")
-        if s == Lore.LATER then
+        if state == Lore.LATER then
             icon:SetDesaturated(true)
             icon:SetAlpha(0.6)
         end
@@ -165,8 +165,8 @@ end
 
 local function PinnedZones()
     local list = {}
-    for zone, z in ipairs(Lore.Zones()) do
-        if ns.db.pinned[z[1]] then
+    for zone, entry in ipairs(Lore.Zones()) do
+        if ns.db.pinned[entry[1]] then
             local _, total = Lore.Count(zone)
             if total > 0 then list[#list + 1] = zone end
         end
@@ -178,8 +178,8 @@ local function GroupCount(group)
     if group ~= PINNED then return Lore.GroupCount(group) end
     local done, total = 0, 0
     for _, zone in ipairs(PinnedZones()) do
-        local d, t = Lore.Count(zone)
-        done, total = done + d, total + t
+        local zoneDone, zoneTotal = Lore.Count(zone)
+        done, total = done + zoneDone, total + zoneTotal
     end
     return done, total
 end
@@ -193,8 +193,8 @@ end
 local function ZonesOf(group)
     if group == PINNED then return PinnedZones() end
     local list = {}
-    for zone, z in ipairs(Lore.Zones()) do
-        if z[2] == group then
+    for zone, entry in ipairs(Lore.Zones()) do
+        if entry[2] == group then
             local _, total = Lore.Count(zone)
             if total > 0 then list[#list + 1] = zone end
         end
@@ -266,35 +266,35 @@ local function InitNavRow(row, data)
         row.content = CreateFrame("Frame", nil, row)
         row.content:SetAllPoints()
         row.content:SetFrameLevel(row:GetFrameLevel() + 3)
-        local c = row.content
-        row.selected = c:CreateTexture(nil, "BACKGROUND")
+        local layer = row.content
+        row.selected = layer:CreateTexture(nil, "BACKGROUND")
         row.selected:SetAllPoints()
         row.selected:SetColorTexture(1, 0.82, 0.25, 0.16)
-        row.hover = c:CreateTexture(nil, "BACKGROUND", nil, 1)
+        row.hover = layer:CreateTexture(nil, "BACKGROUND", nil, 1)
         row.hover:SetAllPoints()
         row.hover:SetColorTexture(1, 1, 1, 0.07)
         row.hover:Hide()
-        row.edge = c:CreateTexture(nil, "BORDER")
+        row.edge = layer:CreateTexture(nil, "BORDER")
         row.edge:SetPoint("BOTTOMLEFT")
         row.edge:SetPoint("BOTTOMRIGHT")
         row.edge:SetHeight(1)
         row.edge:SetColorTexture(0, 0, 0, 0.8)
-        row.ring = ns.NewRing(c, 22, "Ring2", COLORS.zone)
+        row.ring = ns.NewRing(layer, 22, "Ring2", COLORS.zone)
         row.ring:SetPoint("LEFT", 6, 0)
         row.ring:EnableMouse(false)
-        row.arrow = c:CreateTexture(nil, "ARTWORK")
+        row.arrow = layer:CreateTexture(nil, "ARTWORK")
         row.arrow:SetSize(14, 14)
         row.arrow:SetPoint("LEFT", 6, 0)
-        row.name = c:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        row.name = layer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         row.name:SetJustifyH("LEFT")
         row.name:SetWordWrap(false)
         row.name:SetShadowOffset(1, -1)
-        row.levels = c:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        row.levels = layer:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
         row.levels:SetJustifyH("LEFT")
-        row.count = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.count = layer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.count:SetPoint("RIGHT", -6, 0)
         row.count:SetShadowOffset(1, -1)
-        row.pin = c:CreateTexture(nil, "OVERLAY")
+        row.pin = layer:CreateTexture(nil, "OVERLAY")
         row.pin:SetTexture(MEDIA .. "Pin")
         row.pin:SetSize(12, 12)
         row.pin:SetPoint("RIGHT", row.count, "LEFT", -4, 0)
@@ -333,7 +333,7 @@ local function InitNavRow(row, data)
     local color = closed and COLORS.gold or COLORS.zone
     row.ring:Paint(color, 0.35)
     row.ring:SetGlow(closed)
-    row.ring:SetProgress(Share(done, total))
+    row.ring:SetProgress(Fraction(done, total))
     row.pin:SetShown(Journal:IsPinned(data.zone) and not data.pinned)
     row.name:SetFontObject(closed and "GameFontNormal" or "GameFontHighlight")
     row.name:SetPoint("TOPLEFT", 36, -3)
@@ -369,9 +369,9 @@ function Journal:FillNav()
     frame.overview.count:SetText(("%d / %d  ·  %s"):format(done, total, Percent(done, total)))
     frame.overview.selected:SetShown(page == "overview")
     local rings = frame.overview.rings
-    rings[1]:SetProgress(Share(Lore.GroupCount(1)))
-    rings[2]:SetProgress(Share(Lore.GroupCount(2)))
-    rings[3]:SetProgress(Share(done, total))
+    rings[1]:SetProgress(Fraction(Lore.GroupCount(1)))
+    rings[2]:SetProgress(Fraction(Lore.GroupCount(2)))
+    rings[3]:SetProgress(Fraction(done, total))
 end
 
 local function MarkSelected()
@@ -396,15 +396,15 @@ local function SetHeader(title, subtitle, uiMap, rings, summary, journal)
     local header = frame.header
     header.title:SetText(title)
     header.subtitle:SetText(subtitle or "")
-    local w = header:GetWidth()
-    DrawArt(header.art, uiMap or 947, w > 0 and w or (ns.db.size[1] - NAV_W - 20), HEADER_H, true, journal) -- 947: Azeroth
+    local width = header:GetWidth()
+    DrawArt(header.art, uiMap or 947, width > 0 and width or (ns.db.size[1] - NAV_W - 20), HEADER_H, true, journal) -- 947: Azeroth
     local key = type(page) == "number" and page or "overview" -- the search shows the overview's rings
     local fresh = headerPage ~= key
     headerPage = key
     for i, ring in ipairs(frame.rings) do
-        local r = rings[i]
+        local counts = rings[i]
         if fresh then ring:Draw(0) end
-        ring:SetProgress(Share(r[1], r[2]), true)
+        ring:SetProgress(Fraction(counts[1], counts[2]), true)
     end
     local inner = rings[3]
     frame.rings[3].label:SetText(Percent(inner[1], inner[2]))
@@ -431,8 +431,8 @@ end
 local function NamesWithTicks(list)
     local parts = {}
     for _, id in ipairs(list) do
-        local s = Lore.StatusOf(id)
-        local done = s == Lore.DONE and (Lore.IsPassed(id) and "|cff9a9a9a%s (skipped)|r" or "|cff8cc78c%s (done)|r")
+        local state = Lore.StatusOf(id)
+        local done = state == Lore.DONE and (Lore.IsPassed(id) and "|cff9a9a9a%s (skipped)|r" or "|cff8cc78c%s (done)|r")
         parts[#parts + 1] = (done or "%s"):format(Lore.Name(id) or "?")
     end
     return table.concat(parts, ", ")
@@ -465,7 +465,7 @@ local function Body(id)
     return bodies[id]
 end
 
-local function Summary(id, s, why)
+local function Summary(id, state, why)
     if why then return why end
     local row = Lore.Row(id)
     local objective = Fill(row[F.objective])
@@ -592,23 +592,23 @@ local function InitQuestRow(row, data)
     end
     local id = data.id
     local quest = Lore.Row(id)
-    local s, why = Lore.StatusOf(id)
-    SetStatusIcon(row.icon, s)
-    local passed = s == Lore.DONE and Lore.IsPassed(id) -- skipped on the way to a later quest: counted done
+    local state, why = Lore.StatusOf(id)
+    SetStatusIcon(row.icon, state)
+    local passed = state == Lore.DONE and Lore.IsPassed(id) -- skipped on the way to a later quest: counted done
     if passed then row.icon:SetAlpha(0.55) end
     local level = quest[F.level]
     row.level:SetText(level and level > 0 and ("[%d]"):format(level) or "")
     row.name:SetText((data.step and ("|cff9a9a9aPart %d|r  "):format(data.step) or "") .. (quest[F.name] or ("Quest " .. id)))
-    row.name:SetTextColor(QuestColor(id, s))
+    row.name:SetTextColor(QuestColor(id, state))
     if data.showZone then
         row.where:SetText((Lore.Zone(quest[F.zone])))
     else
         row.where:SetText(quest[F.starter] or "")
     end
-    row.line:SetText(Summary(id, s, why))
-    if s == Lore.LOCKED then
+    row.line:SetText(Summary(id, state, why))
+    if state == Lore.LOCKED then
         row.line:SetTextColor(0.85, 0.45, 0.45)
-    elseif s == Lore.LATER or passed then
+    elseif state == Lore.LATER or passed then
         row.line:SetTextColor(0.62, 0.62, 0.62)
     else
         row.line:SetTextColor(0.85, 0.85, 0.85)
@@ -672,19 +672,19 @@ function Journal:FillQuests(keepScroll)
     elseif type(page) == "number" then
         local byStatus = {}
         for _, id in ipairs(Lore.ZoneQuests(page)) do
-            local s = Lore.StatusOf(id)
-            if s ~= Lore.HIDDEN then
-                byStatus[s] = byStatus[s] or {}
-                table.insert(byStatus[s], id)
+            local state = Lore.StatusOf(id)
+            if state ~= Lore.HIDDEN then
+                byStatus[state] = byStatus[state] or {}
+                table.insert(byStatus[state], id)
             end
         end
         local shown = SHOWN_BY_FILTER[ns.db.filter] or SHOWN_BY_FILTER.todo
         for _, section in ipairs(SECTIONS) do
-            local s, label = section[1], section[2]
-            local list = byStatus[s]
-            local wanted = shown[s] or (s == Lore.LOCKED and ns.db.showLocked)
+            local state, label = section[1], section[2]
+            local list = byStatus[state]
+            local wanted = shown[state] or (state == Lore.LOCKED and ns.db.showLocked)
             if list and wanted then
-                provider:Insert({ section = s, label = label, count = #list })
+                provider:Insert({ section = state, label = label, count = #list })
                 InsertQuests(provider, SortQuests(list))
             end
         end
@@ -904,10 +904,10 @@ function Journal:Draw(keepScroll)
     frame.filterBar:SetShown(type(page) == "number")
     frame.pinButton:SetShown(type(page) == "number")
     frame.exportButton:SetShown(page == "overview")
-    local pending = page == "overview" and #ns.Share.Pending() or 0
-    frame.shareButton:SetShown(pending > 0)
-    if pending > 0 then
-        frame.shareButton:SetText(("Share %d new quest%s"):format(pending, pending == 1 and "" or "s"))
+    local toShare = page == "overview" and #ns.Share.Pending() or 0
+    frame.shareButton:SetShown(toShare > 0)
+    if toShare > 0 then
+        frame.shareButton:SetText(("Share %d quest%s"):format(toShare, toShare == 1 and "" or "s"))
     end
     if type(page) == "number" then
         local pinned = Journal:IsPinned(page)
@@ -1127,10 +1127,6 @@ function Journal:Inspect(entry, quiet)
     frame.inspect = frame.inspect or BuildInspect()
     local view = frame.inspect
     view.entry = entry
-    view.index = nil
-    for i, e in ipairs(frame.badgeOrder or {}) do
-        if e[1] == entry[1] and e[2] == entry[2] then view.index = i end
-    end
     local kind, value = entry[1], entry[2]
     local earnedNow = view.badge:Set(kind, value)
     view.badge.label:SetText("") -- the text beside it says how far along
@@ -1181,8 +1177,8 @@ function Journal:InspectStep(step)
     local view, order = frame.inspect, frame.badgeOrder
     if not (view and view:IsShown() and order and #order > 0) then return end
     local at -- where the shown badge is in the case now (it may have been redrawn)
-    for i, e in ipairs(order) do
-        if e[1] == view.entry[1] and e[2] == view.entry[2] then at = i end
+    for i, other in ipairs(order) do
+        if other[1] == view.entry[1] and other[2] == view.entry[2] then at = i end
     end
     local index = at and ((at - 1 + step) % #order + 1) or (step > 0 and 1 or #order)
     self:Inspect(order[index])
@@ -1203,39 +1199,39 @@ function Journal:ShowMap(id)
     local map = frame.map
     map.id = id
     map:Show()
-    local w, h = map.art:GetWidth(), map.art:GetHeight()
-    if not w or w <= 0 then w, h = map:GetWidth() - 20, map:GetHeight() - 66 end
-    local mw, mh, ox, oy = DrawArt(map.art, uiMap, w, h, false)
+    local width, height = map.art:GetWidth(), map.art:GetHeight()
+    if not width or width <= 0 then width, height = map:GetWidth() - 20, map:GetHeight() - 66 end
+    local drawnW, drawnH, offsetX, offsetY = DrawArt(map.art, uiMap, width, height, false)
     local info = C_Map.GetMapInfo(uiMap)
     local who = row[F.starter] or "Quest giver"
     map.title:SetText(("%s  |cff9a9a9a%s  %.1f, %.1f|r"):format(who, info and info.name or "", x, y))
     map.pin:ClearAllPoints()
-    if mw then
-        map.pin:SetPoint("CENTER", map.art, "TOPLEFT", ox + mw * x / 100, -(oy + mh * y / 100))
+    if drawnW then
+        map.pin:SetPoint("CENTER", map.art, "TOPLEFT", offsetX + drawnW * x / 100, -(offsetY + drawnH * y / 100))
         map.pin:Show()
         map.pulse:Play()
     else
         map.pin:Hide()
     end
     -- You, if you're on this map (a read of where you are; nothing set).
-    local here = mw and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(uiMap, "player")
+    local here = drawnW and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(uiMap, "player")
     local px, py
     if here then
         -- A vector, or (as Forever hands some positions back) a plain { x, y }.
-        local ok, a, b = pcall(function()
+        local ok, mapX, mapY = pcall(function()
             if here.GetXY then return here:GetXY() end
             return here.x, here.y
         end)
-        local secret = issecretvalue and ok and (issecretvalue(a) or issecretvalue(b))
-        if ok and not secret and type(a) == "number" and type(b) == "number" and a > 0 and b > 0 then
-            px, py = a, b
+        local secret = issecretvalue and ok and (issecretvalue(mapX) or issecretvalue(mapY))
+        if ok and not secret and type(mapX) == "number" and type(mapY) == "number" and mapX > 0 and mapY > 0 then
+            px, py = mapX, mapY
         end
     end
     map.you:SetShown(px ~= nil)
     map.youLabel:SetShown(px ~= nil)
     if px then
         map.you:ClearAllPoints()
-        map.you:SetPoint("CENTER", map.art, "TOPLEFT", ox + mw * px, -(oy + mh * py))
+        map.you:SetPoint("CENTER", map.art, "TOPLEFT", offsetX + drawnW * px, -(offsetY + drawnH * py))
     end
     if ns.GamepadUI() then
         -- A chat link can't be clicked with a controller: the map here is the way.
@@ -1290,14 +1286,14 @@ end
 -- The saved size, scale and place (a screen smaller than when they were saved shrinks them to fit).
 function Journal:Place()
     if not frame then return end
-    local p, size = ns.db.point, ns.db.size
+    local saved, size = ns.db.point, ns.db.size
     frame:SetScale(1)
     frame:SetSize(math.max(MIN_W, math.min(MAX_W, UIParent:GetWidth(), size[1] or 0)),
         math.max(MIN_H, math.min(MAX_H, UIParent:GetHeight(), size[2] or 0)))
     frame:SetScale(math.max(MIN_SCALE, math.min(FitScale(), ns.db.scale or 1)))
     FitBounds()
     frame:ClearAllPoints()
-    frame:SetPoint(p[1] or "CENTER", UIParent, p[2] or "CENTER", p[3] or 0, p[4] or 0)
+    frame:SetPoint(saved[1] or "CENTER", UIParent, saved[2] or "CENTER", saved[3] or 0, saved[4] or 0)
 end
 
 -- A new scale (never more than fits the screen), the window's top left corner staying where it is.
@@ -1538,7 +1534,7 @@ local function BuildHeader(content)
     end)
     pin:SetScript("OnLeave", GameTooltip_Hide)
     frame.pinButton = pin
-    -- Quests Lorebound's list hasn't got, waiting to be shared (Share.lua): on the overview.
+    -- Quests (or their Forever text) Lorebound's list hasn't got, waiting to be shared (Share.lua): on the overview.
     local share = CreateFrame("Button", nil, text, "UIPanelButtonTemplate")
     share:SetSize(190, 22)
     share:SetPoint("BOTTOMRIGHT", -10, 28)
@@ -1785,9 +1781,9 @@ local function Build()
     end)
     frame:SetScript("OnHide", function()
         events:UnregisterAllEvents()
-        if pending then
-            pending:Cancel()
-            pending = nil
+        if refreshTimer then
+            refreshTimer:Cancel()
+            refreshTimer = nil
         end
         if searchTimer then
             searchTimer:Cancel()
@@ -1805,9 +1801,9 @@ end
 -- for a burst of them.
 function Journal:Schedule(stale)
     if stale then Lore.fresh = false end
-    if not frame or not frame:IsShown() or pending then return end
-    pending = C_Timer.NewTimer(0.3, function()
-        pending = nil
+    if not frame or not frame:IsShown() or refreshTimer then return end
+    refreshTimer = C_Timer.NewTimer(0.3, function()
+        refreshTimer = nil
         Journal:Refresh()
     end)
 end

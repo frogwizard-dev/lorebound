@@ -3,16 +3,16 @@
 Three things: **browse** every quest (`/`, `/zone/<n>`), a character's **progress** from Lorebound's "Export to
 website" code (`/me`, decoded in the browser; `/p/<id>` private links through `functions/api/progress.js`, stored
 in D1 with a token only the saving browser has), and **quest reports**: players paste the code from Lorebound's
-**Share new quests** box into `/report`; the function turns it
-into a GitHub issue (label `quest-report`) in a reports repository, through a service account's token, so
-nobody needs to sign in. It's the same shape as Warscribe's feedback endpoint: honeypot, origin check,
+**Share new quests** box into `/report`; the function turns it into a GitHub issue (label `quest-report`) in a
+reports repository, through a service account's token, so nobody needs to sign in. It's the same shape as Warscribe's feedback endpoint: honeypot, origin check,
 per-IP rate limit in D1 (hashed IPs), and only Lorebound's own `LM1^...` lines reach the issue.
 
 - `public/index.html`, `app.js`, `style.css`: the site (one page, routes in `_redirects`); `report.html`: reports;
   `404.html`: missing pages and files (so a missing data file is a 404, not the app's HTML).
-- `public/data/`: the quest list for each list version, written by `make_lore.py` (old versions stay, so old codes read).
+- `public/data/`: the quest list for each list version and each quest's page (`q/<id>.json`), written by
+  `tools/make_lore.py` (old versions stay, so old codes read).
 - `public/art/`: the game's maps (fully revealed), the dungeon journal's paintings, the addon's badge frames and the
-  class and profession icons, written by `make_lore_site_art.py`. `public/vendor/qrcode.min.js`: qrcode-generator
+  class and profession icons, written by `tools/make_lore_site_art.py`. `public/vendor/qrcode.min.js`: qrcode-generator
   1.4.4 (MIT), kept here rather than loaded from a CDN, since the page holds link tokens.
 - `functions/api/report.js`: `POST /api/report`; `functions/api/progress.js`: progress links; `functions/_lib/limit.js`:
   rate limits and origin check.
@@ -38,10 +38,11 @@ per-IP rate limit in D1 (hashed IPs), and only Lorebound's own `LM1^...` lines r
 
 ## Getting reports into Lorebound
 
-`python make_lore.py --pull` (from `_tools`) saves every open `quest-report` issue as
-`lore_reports/issue-<number>.txt` (through `gh`, signed in as an account that can read the repository:
-`gh auth switch -u frogwizard-dev`), then builds the data as usual. Close the issues once that data is
-released (`python make_lore.py --pull --close` closes the ones it read, with a thank-you).
+Read each new report issue; when it's right, add the `approved` label. `python make_lore.py --pull` (in `tools/`)
+saves every open issue labelled both `quest-report` and `approved` as `lore_reports/issue-<number>.txt` (through
+`gh`, signed in as an account that can read the repository: `gh auth switch -u frogwizard-dev`), then builds the
+data as usual. `--close` closes the ones it read, with a thank-you. The weekly update on GitHub
+(`.github/workflows/update.yml`) does this too, closing them when the `REPORTS_TOKEN` secret is set.
 
 Each reported quest is checked before it's taken: its ID must be in the game's own quest list, and its name must
 match Wowhead's (Forever section, one cached lookup per quest). The rest go to `lore_reports/needs-a-look.txt`
@@ -49,6 +50,7 @@ with the reason (made-up IDs, quests Wowhead marks not yet implemented); `--trus
 
 ## Updating everything
 
-`python update_lore.py` (from `_tools`) does the lot: pulls the open reports, builds the quest list (checking each
-reported quest, and naming quest IDs a patch added in `lore_reports/new-in-client.txt`), makes any new art, copies
-Lorebound_Data into the game and deploys this site. `--close` also closes the report issues it read.
+`python update_lore.py` (in `tools/`) does the lot on this PC: pulls the approved reports, builds the quest list
+(checking each reported quest, and naming quest IDs a patch added in `lore_reports/new-in-client.txt`), fetches
+Forever's objectives for new quests, makes any new art, copies Lorebound_Data and the Lorebound_Text parts into the game and
+deploys this site. `--close` also closes the report issues it read.

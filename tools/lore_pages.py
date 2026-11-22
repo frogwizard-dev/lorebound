@@ -1,15 +1,19 @@
-"""Each quest's page data for Lorebound's site: loremaster-report/public/data/q/<id>.json. Called by make_lore.py.
+"""Each quest's page data for Lorebound's site (site/public/data/q/<id>.json) and the journal's quest pages
+(make_lore.write_text). Called by make_lore.py.
 
 - Forever's objective and requirements: Wowhead's tooltips (lore_wowhead.py's cache).
 - The description, progress and completion text and the rewards: CMaNGOS's classic-db (GPL-3.0; its full
   database in lore_sources/classicdb.sql.gz), shown only where Forever's objective is Classic's word for word
-  ("same"), since Forever rewrote many quests. Players' shared text (lore_reports) will fill in the rest.
+  ("same"), since Forever rewrote many quests. Where it doesn't apply, players' text from Forever (LT1 lines in
+  the reports you've approved, lore_reports) fills the page, marked "shared".
 - Where it's handed in and where its objectives are (Zquest's spawns), and its chain (the list's links).
 """
 import gzip
 import json
 import os
 import re
+
+from game_files import GameFiles, wago_csv
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SOURCES = os.path.join(HERE, "lore_sources")
@@ -36,8 +40,8 @@ def _rows(sql, table):
     columns = re.findall(r"^\s*`(\w+)`", create.group(1), re.M)
     for insert in re.finditer(r"INSERT INTO `%s` VALUES (.*?);\n" % table, sql, re.S):
         text = insert.group(1)
-        i, n = 0, len(text)
-        while i < n:
+        i, length = 0, len(text)
+        while i < length:
             if text[i] != "(":
                 i += 1
                 continue
@@ -73,10 +77,10 @@ def classic():
     """{ quest: CMaNGOS's fields we use }, and { item: (name, quality) }, cached beside the dump."""
     if os.path.exists(CLASSIC_CACHE) and os.path.getmtime(CLASSIC_CACHE) > os.path.getmtime(CLASSIC_SQL):
         cached = json.load(open(CLASSIC_CACHE, encoding="utf-8"))
-        return {int(k): v for k, v in cached["quests"].items()}, {int(k): v for k, v in cached["items"].items()}
+        return {int(key): value for key, value in cached["quests"].items()}, {int(key): value for key, value in cached["items"].items()}
     sql = gzip.open(CLASSIC_SQL, "rt", encoding="utf-8", errors="replace").read()
-    quests = {row["entry"]: {c: row[c] for c in QUEST_COLUMNS} for row in _rows(sql, "quest_template")}
-    wanted = {row[c] for row in quests.values() for c in QUEST_COLUMNS if c.startswith(("RewItemId", "RewChoiceItemId"))}
+    quests = {row["entry"]: {column: row[column] for column in QUEST_COLUMNS} for row in _rows(sql, "quest_template")}
+    wanted = {row[column] for row in quests.values() for column in QUEST_COLUMNS if column.startswith(("RewItemId", "RewChoiceItemId"))}
     items = {row["entry"]: (row["name"], row["Quality"]) for row in _rows(sql, "item_template") if row["entry"] in wanted}
     with open(CLASSIC_CACHE, "w", encoding="utf-8") as f:
         json.dump({"quests": quests, "items": items}, f, ensure_ascii=False, separators=(",", ":"))
@@ -94,7 +98,7 @@ def game_text(text):
     text = re.sub(r"\$[Nn]", "<name>", text)
     text = re.sub(r"\$[Cc]", "<class>", text)
     text = re.sub(r"\$[Rr]", "<race>", text)
-    return [p.strip() for p in re.split(r"\n\s*\n|\n", text) if p.strip()]
+    return [part.strip() for part in re.split(r"\n\s*\n|\n", text) if part.strip()]
 
 
 def plain(text):
@@ -109,35 +113,31 @@ def same_objective(classic_objective, forever_paragraphs):
 def forever_items():
     """{ item: (name, quality, icon) } from Forever's own item tables (wago.tools' CSVs of ItemSparse and Item,
     in lore_sources) with icon names from the community listfile; {} when they aren't there."""
-    import csv
-    from make_lore import wago_csv  # Forever's tables as CSV from wago.tools, cached a day in lore_sources
-    csv.field_size_limit(10 ** 7)
-    icon_fid = {int(r["ID"]): int(r["IconFileDataID"] or 0) for r in wago_csv("Item")}
-    from game_files import GameFiles
+    icon_fid = {int(row["ID"]): int(row["IconFileDataID"] or 0) for row in wago_csv("Item")}
     wanted = set(icon_fid.values())
     names = {fid: path[len("interface/icons/"):-4] for path, fid in GameFiles(local=False).paths().items()
              if fid in wanted and path.startswith("interface/icons/") and path.endswith(".blp")}
     out = {item: (None, None, names.get(fid)) for item, fid in icon_fid.items()}  # ItemSparse has only some items
-    for r in wago_csv("ItemSparse"):
-        item = int(r["ID"])
-        out[item] = (r["Display_lang"], int(r["OverallQualityID"] or 1), names.get(icon_fid.get(item)))
+    for row in wago_csv("ItemSparse"):
+        item = int(row["ID"])
+        out[item] = (row["Display_lang"], int(row["OverallQualityID"] or 1), names.get(icon_fid.get(item)))
     return out
 
 
 def rewards(entry, items, forever):
     def listed(ids, counts):
         found = []
-        for i, c in zip(ids, counts):
-            if entry[i]:
-                name, quality = items.get(entry[i], (None, None))
-                forever_name, forever_quality, icon = forever.get(entry[i], (None, None, None))
+        for id_key, count_key in zip(ids, counts):
+            if entry[id_key]:
+                name, quality = items.get(entry[id_key], (None, None))
+                forever_name, forever_quality, icon = forever.get(entry[id_key], (None, None, None))
                 name, quality = forever_name or name, forever_quality if forever_name else quality
-                found.append([entry[i], entry[c] or 1, name, quality, icon])
+                found.append([entry[id_key], entry[count_key] or 1, name, quality, icon])
         return found
-    choose = listed(["RewChoiceItemId%d" % n for n in range(1, 7)], ["RewChoiceItemCount%d" % n for n in range(1, 7)])
-    receive = listed(["RewItemId%d" % n for n in range(1, 5)], ["RewItemCount%d" % n for n in range(1, 5)])
-    rep = [[entry["RewRepFaction%d" % n], entry["RewRepValue%d" % n]] for n in range(1, 6)
-           if entry["RewRepFaction%d" % n] and entry["RewRepValue%d" % n]]
+    choose = listed(["RewChoiceItemId%d" % number for number in range(1, 7)], ["RewChoiceItemCount%d" % number for number in range(1, 7)])
+    receive = listed(["RewItemId%d" % number for number in range(1, 5)], ["RewItemCount%d" % number for number in range(1, 5)])
+    rep = [[entry["RewRepFaction%d" % number], entry["RewRepValue%d" % number]] for number in range(1, 6)
+           if entry["RewRepFaction%d" % number] and entry["RewRepValue%d" % number]]
     money = entry["RewOrReqMoney"] if (entry["RewOrReqMoney"] or 0) > 0 else 0
     out = {"choose": choose, "items": receive, "rep": rep, "money": money, "spell": entry["RewSpell"] or 0}
     return out if (choose or receive or rep or money or out["spell"]) else None
@@ -147,23 +147,24 @@ def rewards(entry, items, forever):
 
 def chains(rows, I):
     """{ quest: [the chain it's in, in order] } from nextInChain, else a single prerequisite."""
-    nxt, prev = {}, {}
+    next_of, before = {}, {}
     for qid, row in rows.items():
         if row[I["nextInChain"]] in rows:
-            nxt[qid] = row[I["nextInChain"]]
-            prev.setdefault(row[I["nextInChain"]], qid)
+            next_of[qid] = row[I["nextInChain"]]
+            before.setdefault(row[I["nextInChain"]], qid)
     for qid, row in rows.items():
         needs = row[I["needsAll"]] or []
-        if len(needs) == 1 and abs(needs[0]) in rows and qid not in prev:
-            prev[qid] = abs(needs[0])
-            nxt.setdefault(abs(needs[0]), qid)
+        if len(needs) == 1 and abs(needs[0]) in rows and qid not in before:
+            before[qid] = abs(needs[0])
+            next_of.setdefault(abs(needs[0]), qid)
     # Each chain once, walked from its first quest (one with no step before it); every quest on it gets that same
-    # list, so the first quest, the step and the count agree. Chains don't share quests: where two meet, the second stops; a quest only reached by a branch stands alone.
+    # list, so the first quest, the step and the count agree. Chains don't share quests: where two meet, the second
+    # stops; a quest only reached by a branch stands alone.
     out = {}
-    for first in sorted(q for q in nxt if q not in prev):
+    for first in sorted(qid for qid in next_of if qid not in before):
         chain, at = [first], first
-        while at in nxt and nxt[at] not in out and nxt[at] not in chain and len(chain) < 40:  # stops where it joins
-            at = nxt[at]                                                                   # a chain already built
+        while at in next_of and next_of[at] not in out and next_of[at] not in chain and len(chain) < 40:  # stops where it joins
+            at = next_of[at]                                                                   # a chain already built
             chain.append(at)
         if len(chain) > 1:
             for qid in chain:
@@ -173,13 +174,14 @@ def chains(rows, I):
 
 # ---------------------------------------------------------------- pages
 
-def write(rows, extras, I):
+def write(rows, extras, I, chain_of, shared_text=None):
+    """Writes every quest's page and returns them { quest: page }; chain_of is chains()'s, shared_text the players'
+    text by quest ({ field: text }, make_lore.py's)."""
     os.makedirs(OUT, exist_ok=True)
     quests, items = classic() if os.path.exists(CLASSIC_SQL) else ({}, {})
     wowhead = json.load(open(WOWHEAD, encoding="utf-8")) if os.path.exists(WOWHEAD) else {}
-    chain_of = chains(rows, I)
     item_names = forever_items()
-    counts = {"same": 0, "changed": 0, "unchecked": 0, "new": 0}
+    counts = {"same": 0, "changed": 0, "unchecked": 0, "new": 0, "shared": 0}
     pages = {}
     for qid, row in rows.items():
         forever = wowhead.get(str(qid))
@@ -205,15 +207,28 @@ def write(rows, extras, I):
             page["text"] = {"description": game_text(old["Details"]), "progress": game_text(old["RequestItemsText"]),
                             "completion": game_text(old["OfferRewardText"])}
             page["rewards"] = rewards(old, items, item_names)
+        players = (shared_text or {}).get(qid)
+        if players and same is not True:  # Forever's own text, as players read it, field by field over Classic's
+            if not forever and game_text(players.get("objective")):   # unchecked text (Wowhead's objective wins)
+                page["objective"] = game_text(players["objective"])
+            text = dict(page.get("text") or {"description": [], "progress": [], "completion": []})
+            for field in ("description", "progress", "completion"):
+                if game_text(players.get(field)):
+                    text[field] = game_text(players[field])
+                    page["shared"] = True
+            if page.get("shared"):
+                page["text"] = text
+                counts["shared"] += 1
         spots = extras.get(qid, {}).get("spots") or {}
         kept, total = {}, 0
-        for ui in sorted(spots, key=lambda m: (m != row[I["map"]], -len(spots[m]))):
+        for ui in sorted(spots, key=lambda ui: (ui != row[I["map"]], -len(spots[ui]))):
             kept[ui] = spots[ui][:max(0, MAX_SPOTS - total)]
             total += len(kept[ui])
         page["spots"] = {str(ui): found for ui, found in kept.items() if found}
         with open(os.path.join(OUT, "%d.json" % qid), "w", encoding="utf-8", newline="\n") as f:
             json.dump(page, f, ensure_ascii=False, separators=(",", ":"))
         pages[qid] = page
-    print("quest pages %d: Classic's text kept %d, changed in Forever %d, not on Wowhead yet %d, new in Forever %d"
-          % (len(rows), counts["same"], counts["changed"], counts["unchecked"], counts["new"]))
+    print("quest pages %d: Classic's text kept %d, changed in Forever %d, not on Wowhead yet %d, new in Forever %d;"
+          " players' text on %d" % (len(rows), counts["same"], counts["changed"], counts["unchecked"], counts["new"],
+                                    counts["shared"]))
     return pages

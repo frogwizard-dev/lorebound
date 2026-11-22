@@ -51,6 +51,12 @@ def edge(distance, radius, soft=SOFT):
     return np.clip((radius - distance) / soft + 0.5, 0, 1)
 
 
+def shrink(values, n):
+    """A 0..1 array drawn at 4x, scaled down to n x n (smooth edges without smoothing each shape by hand)."""
+    image = Image.fromarray((np.clip(values, 0, 1) * 255).astype(np.uint8))
+    return np.array(image.resize((n, n), Image.LANCZOS)).astype(float) / 255
+
+
 def save(alpha, name, rgb=None):
     n = alpha.shape[0]
     rgba = np.zeros((n, n, 4), dtype=np.uint8)
@@ -97,9 +103,7 @@ def book(n=32):
     x, y = x / (big / 2), y / (big / 2)
     page_l = (x > -0.86) & (x < -0.06) & (y > -0.55 - 0.12 * x) & (y < 0.62 - 0.1 * x)
     page_r = (x < 0.86) & (x > 0.06) & (y > -0.55 + 0.12 * x) & (y < 0.62 + 0.1 * x)
-    alpha = (page_l | page_r).astype(float)
-    image = Image.fromarray((alpha * 255).astype(np.uint8)).resize((n, n), Image.LANCZOS)
-    return np.array(image).astype(float) / 255
+    return shrink((page_l | page_r).astype(float), n)
 
 
 def glow():
@@ -174,16 +178,10 @@ def badge(kind, n=128):
     groove = np.clip(lip - window, 0, 1)
     gold = np.stack([0.98 * light, 0.76 * light, 0.32 * light], axis=2)
     gold = gold + rim[..., None] * np.array([0.25, 0.22, 0.12]) - groove[..., None] * np.array([0.35, 0.3, 0.15])
-    alpha = frame
-
-    def down(a):
-        image = Image.fromarray((np.clip(a, 0, 1) * 255).astype(np.uint8))
-        return np.array(image.resize((n, n), Image.LANCZOS)).astype(float) / 255
-
-    rgb = np.stack([down(gold[..., i] * alpha) for i in range(3)], axis=2)
-    a = down(alpha)
-    rgb = rgb / np.maximum(a[..., None], 1e-3)  # un-premultiplied
-    return rgb, a, down(lip)
+    rgb = np.stack([shrink(gold[..., i] * frame, n) for i in range(3)], axis=2)
+    alpha = shrink(frame, n)
+    rgb = rgb / np.maximum(alpha[..., None], 1e-3)  # un-premultiplied
+    return rgb, alpha, shrink(lip, n)
 
 
 def shine(n=64):
@@ -199,12 +197,10 @@ def pin(n=32):
     x, y = x / (big / 2), y / (big / 2)
     head = np.clip((0.48 - np.hypot(x, y + 0.28)) / 0.02 + 0.5, 0, 1)
     # The point: a triangle from the head down to the bottom.
-    t = np.clip((y + 0.1) / 1.0, 0, 1)
-    point = np.clip(((0.40 * (1 - t)) - np.abs(x)) / 0.02 + 0.5, 0, 1) * (y > -0.2) * (y < 0.92)
+    along = np.clip((y + 0.1) / 1.0, 0, 1)
+    point = np.clip(((0.40 * (1 - along)) - np.abs(x)) / 0.02 + 0.5, 0, 1) * (y > -0.2) * (y < 0.92)
     hole = np.clip((0.16 - np.hypot(x, y + 0.28)) / 0.02 + 0.5, 0, 1)
-    alpha = np.clip(np.maximum(head, point) - hole, 0, 1)
-    image = Image.fromarray((alpha * 255).astype(np.uint8)).resize((n, n), Image.LANCZOS)
-    return np.array(image).astype(float) / 255
+    return shrink(np.maximum(head, point) - hole, n)
 
 
 def main():
@@ -228,7 +224,7 @@ def main():
         save(mask, "Badge%sMask.tga" % kind)
     save(pin(), "Pin.tga")
     save(shine(), "Shine.tga")
-    print("made the rings, masks, Dot, Glow, Spark, the badges, Pin and Book in", os.path.normpath(OUT))
+    print("made the rings, masks, Dot, Glow, Halo, Spark, the badges, Shine, Pin and Book in", os.path.normpath(OUT))
 
 
 if __name__ == "__main__":

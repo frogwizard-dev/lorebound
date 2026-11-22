@@ -26,10 +26,12 @@ ns.defaults = {
     pinned = {},         -- [zone name] = true: pinned to the top of the zone list and the overview
     size = { 980, 640 }, -- the journal's width and height (its resize grip)
     scale = 1,           -- the journal's scale (the grip with Shift held)
-    text = {},           -- [questID] = { description, objective, reward }: what the quest windows showed
+    text = {},           -- [questID] = { description, objective, completion, progress }: what the quest windows showed
     learned = {},        -- [questID] = { name, zone, level, factions seen, i = { giver, giverName, map, x, y,
                          --   ender, enderName, before, class } }: quests the list hasn't got, met in game
     shared = {},         -- [questID] = true: learned quests already shared (Share.lua)
+    textShared = {},     -- [questID] = the text fields already shared ("d", "o", "c", "p" in a string; Share.lua)
+    textClean = {},      -- [questID] = the text fields kept with the reader's name as $N (only those are shared)
 }
 local CHAR_DEFAULTS = {
     days = {},           -- ["2026-11-21"] = quests turned in that day (the last 30 days)
@@ -55,6 +57,13 @@ end
 ------------------------------------------------------------------------------
 
 local waiting = {}
+
+-- A value made safe for the share and export codes: nil as "", and every character either code uses as a
+-- separator (~ ; ^ |, line breaks) or the site refuses to keep (< > `) turned into a space.
+function ns.Plain(value)
+    if value == nil then return "" end
+    return (tostring(value):gsub("[~;%^|\n<>`]", " "))
+end
 
 -- Whether Forever's gamepad UI is on.
 function ns.GamepadUI()
@@ -92,21 +101,54 @@ end
 -- The quest list, loaded once something needs it
 ------------------------------------------------------------------------------
 
--- The list, or nil when Lorebound_Data can't load (said once).
--- The quest pages' text (Lorebound_Text, load on demand): LoreboundText[id], or nil when it's not there.
-function ns.LoadText()
-    if ns.text ~= nil then return ns.text or nil end
+-- Loads a load-on-demand part; true when it's loaded (or was already).
+local function LoadPart(name)
     local load = C_AddOns and C_AddOns.LoadAddOn or LoadAddOn
-    if load then pcall(load, "Lorebound_Text") end
-    ns.text = type(_G.LoreboundText) == "table" and _G.LoreboundText or false
-    _G.LoreboundText = nil
-    return ns.text or nil
+    if not load then return false end
+    local ok, loaded, reason = pcall(load, name)
+    return ok and (loaded and true or reason == nil)
 end
 
+-- The quest pages' text, in three load-on-demand parts by the quest's group (make_lore.py's TEXT_PARTS), each
+-- holding every page as Lua source: only the part a page is in loads, and only the page shown is made a table.
+local TEXT_PARTS = { [1] = "Lorebound_Text_EasternKingdoms", [2] = "Lorebound_Text_Kalimdor" }
+local TEXT_REST = "Lorebound_Text"
+local textLoaded, textSource = {}, {}   -- [part] = true; [questID] = its page's source, from the parts loaded
+local shownId, shownPage                 -- the last page made
+
+local function LoadTextPart(name)
+    if not textLoaded[name] then
+        textLoaded[name] = true
+        if not LoadPart(name) then
+            ns.Say(("%s is missing or turned off in the AddOns list, so some quest pages have no text."):format(name))
+        end
+    end
+    local found = _G.LoreboundText -- every part adds its pages to it
+    _G.LoreboundText = nil
+    if type(found) ~= "table" then return end
+    for id, source in pairs(found) do textSource[id] = source end
+end
+
+-- A quest's page in its group (Lore.Zone's second value): { o, n, d, p, c, r, k } (make_lore.write_text), or nil
+-- when there's none or its part is missing.
+function ns.QuestText(id, group)
+    if shownId == id then return shownPage end
+    LoadTextPart(TEXT_PARTS[group] or TEXT_REST)
+    local source, page = textSource[id], nil
+    local make = source and loadstring("return " .. source)
+    if make then
+        setfenv(make, {})
+        local ok, made = pcall(make)
+        page = ok and type(made) == "table" and made or nil
+    end
+    shownId, shownPage = id, page
+    return page
+end
+
+-- The list, or nil when Lorebound_Data can't load (said once).
 function ns.LoadData()
     if ns.data ~= nil then return ns.data or nil end
-    local load = C_AddOns and C_AddOns.LoadAddOn or LoadAddOn
-    if load then pcall(load, "Lorebound_Data") end
+    LoadPart("Lorebound_Data")
     local data = _G.LoreboundData
     _G.LoreboundData = nil
     if type(data) ~= "table" then
@@ -123,14 +165,15 @@ end
 -- What the quest windows show
 ------------------------------------------------------------------------------
 
-local function Text(value)
+-- A string with something in it, else nil (the game's text calls give "" for nothing).
+local function NonEmpty(value)
     if type(value) ~= "string" or value == "" then return nil end
     return value
 end
 
 -- The zone you're standing in, for a quest met before it's in your log.
 local function CurrentZone()
-    return Text(GetRealZoneText and GetRealZoneText()) or Text(GetZoneText and GetZoneText())
+    return NonEmpty(GetRealZoneText and GetRealZoneText()) or NonEmpty(GetZoneText and GetZoneText())
 end
 
 -- The quest log heading above a quest: the zone (or category) the game files it under.
@@ -141,7 +184,7 @@ local function LogInfo(questID)
     if not info then return nil end
     for i = index - 1, 1, -1 do
         local above = C_QuestLog.GetInfo(i)
-        if above and above.isHeader then return info, Text(above.title) end
+        if above and above.isHeader then return info, NonEmpty(above.title) end
     end
     return info, nil
 end
@@ -153,8 +196,8 @@ local function Who()
     local kind, _, _, _, _, id = strsplit("-", guid)
     local name = UnitName("npc")
     if issecretvalue and issecretvalue(name) then name = nil end
-    if kind == "Creature" or kind == "Vehicle" then return tonumber(id), Text(name) end
-    if kind == "GameObject" then return "o" .. id, Text(name) end
+    if kind == "Creature" or kind == "Vehicle" then return tonumber(id), NonEmpty(name) end
+    if kind == "GameObject" then return "o" .. id, NonEmpty(name) end
     return nil
 end
 
@@ -190,7 +233,7 @@ local function Learn(questID, name, zone, level, extra)
     for key, value in pairs(extra or {}) do
         entry.i[key] = value -- the latest look at the quest wins (nil fields don't erase what's known)
     end
-    entry[1] = Text(name) or entry[1]
+    entry[1] = NonEmpty(name) or entry[1]
     entry[2] = zone or entry[2] or CurrentZone()
     entry[3] = (level and level > 0) and level or entry[3]
     -- Shared by every character: counted for a faction once one of its characters has met it
@@ -212,17 +255,56 @@ local function Repeatable(questID)
     return (QuestIsDaily and QuestIsDaily()) or (QuestIsWeekly and QuestIsWeekly())
 end
 
+local WORD_BYTE = "[%w\128-\255]" -- a letter, a digit, or part of a letter outside ASCII
+
+-- The text with every whole-word use of words replaced (plain matching, so any name works, accents and all).
+local function ReplaceWord(text, words, by)
+    if not words or words == "" then return text end
+    local out, at = {}, 1
+    while true do
+        local first, last = text:find(words, at, true)
+        if not first then break end
+        local whole = (first == 1 or not text:sub(first - 1, first - 1):find(WORD_BYTE))
+            and not text:sub(last + 1, last + 1):find(WORD_BYTE)
+        out[#out + 1] = text:sub(at, first - 1) .. (whole and by or words)
+        at = last + 1
+    end
+    out[#out + 1] = text:sub(at)
+    return table.concat(out)
+end
+
+-- What the quest window said, with this character's name as $N (the game's own markup), so the account-wide copy
+-- can be shared without anyone's name.
+local function Unnamed(text)
+    text = NonEmpty(text)
+    if not text then return nil end
+    local name, surname = UnitName("player")
+    if surname and surname ~= "" then text = ReplaceWord(text, (name or "") .. " " .. surname, "$N") end
+    return ReplaceWord(text, name, "$N")
+end
+
+local function Keep(questID, saved, index, text)
+    text = Unnamed(text)
+    if not text then return end
+    saved[index] = text
+    local clean = ns.db.textClean[questID] or ""
+    if not clean:find(tostring(index), 1, true) then ns.db.textClean[questID] = clean .. index end
+end
+
 local function QuestWindow(kind)
     local questID = GetQuestID and GetQuestID()
     if not questID or questID == 0 then return end
     local saved = ns.db.text[questID] or {}
     if kind == "detail" then
-        saved[1] = Text(GetQuestText()) or saved[1]
-        saved[2] = Text(GetObjectiveText()) or saved[2]
+        Keep(questID, saved, 1, GetQuestText())
+        Keep(questID, saved, 2, GetObjectiveText())
+    elseif kind == "progress" then
+        Keep(questID, saved, 4, GetProgressText())
     else
-        saved[3] = Text(GetRewardText()) or saved[3]
+        Keep(questID, saved, 3, GetRewardText())
     end
     if next(saved) then ns.db.text[questID] = saved end
+    ns.shareStale = true
     local giver, giverName = Who()
     if kind == "detail" and not Repeatable(questID) then
         local map, x, y
@@ -246,6 +328,7 @@ local function QuestWindow(kind)
 end
 
 local function Accepted(questID)
+    ns.shareStale = true
     local info, zone = LogInfo(questID)
     if not info or info.isHidden or info.isTask or (info.frequency and info.frequency ~= 0) then return end
     if C_QuestLog.IsRepeatableQuest and C_QuestLog.IsRepeatableQuest(questID) then return end
@@ -282,7 +365,8 @@ end
 
 local events = CreateFrame("Frame")
 ns.events = events
-for _, event in ipairs({ "ADDON_LOADED", "QUEST_DETAIL", "QUEST_ACCEPTED", "QUEST_COMPLETE", "QUEST_TURNED_IN" }) do
+for _, event in ipairs({ "ADDON_LOADED", "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_ACCEPTED", "QUEST_COMPLETE",
+    "QUEST_TURNED_IN" }) do
     events:RegisterEvent(event)
 end
 events:SetScript("OnEvent", function(_, event, arg1, arg2)
@@ -298,6 +382,8 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
         end
     elseif event == "QUEST_DETAIL" then
         QuestWindow("detail")
+    elseif event == "QUEST_PROGRESS" then
+        QuestWindow("progress")
     elseif event == "QUEST_COMPLETE" then
         QuestWindow("reward")
     elseif event == "QUEST_ACCEPTED" then

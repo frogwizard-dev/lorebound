@@ -1,7 +1,7 @@
 {
-  "name": "loremaster-report",
+  "name": "lorebound-site",
   "private": true,
-  "description": "lm.frogwizard.net: Loremaster's quest report page and its Cloudflare Pages function",
+  "description": "lb.frogwizard.net: Lorebound's site and its Cloudflare Pages functions",
   "scripts": {
     "deploy": "wrangler pages deploy"
   },

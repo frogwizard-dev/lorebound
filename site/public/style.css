@@ -23,7 +23,6 @@
   --ink: #2e1d0e;           /* writing on the quest parchment */
   --ink-head: #5a2d0c;
   --ink-line: rgb(46 29 14 / 0.25);
-  --q2: #157a00; --q3: #0058b0; --q4: #7a2bb5; --q5: #b35a00; /* item quality, the game's colours darkened for paper */
   --pin-spot: #e8402e;
   --side: 340px;
   --radius: 6px;
@@ -42,7 +41,6 @@ button, input, textarea { font: inherit; color: inherit; }
 h1, h2, h3 { margin: 0; line-height: 1.2; }
 .muted { color: var(--muted); }
 .pad { padding: 24px; }
-.hidden { display: none !important; }
 
 /* ---------------------------------------------------------------- the bar */
 
@@ -308,17 +306,12 @@ h1, h2, h3 { margin: 0; line-height: 1.2; }
 .paper h2:first-child { margin-top: 0; }
 .paper p { margin: 0 0 10px; max-width: 68ch; }
 .paper a { color: var(--ink-head); }
-.paper .needs, .paper .items { margin: 4px 0 12px; padding-left: 20px; }
+.paper .needs { margin: 4px 0 12px; padding-left: 20px; }
 .paper .needs li { display: flex; gap: 12px; max-width: 420px; }
 .paper .needs b { margin-left: auto; font-family: Figtree, sans-serif; font-size: 15px; }
-.paper .items li { margin: 4px 0; }
-.paper .item { font-weight: 700; text-decoration: none; text-shadow: none; }
-.paper .item.q0 { color: var(--ink); opacity: 0.7; }
-.paper .item.q1 { color: var(--ink); }
 .paper details { margin-top: 14px; border-top: 1px solid var(--ink-line); padding-top: 10px; }
 .paper summary { cursor: pointer; font: 700 19px "Crimson Pro", Georgia, serif; color: var(--ink-head); min-height: 32px; }
 .paper .muted { color: var(--ink); opacity: 0.7; }
-.item.q2 { color: var(--q2); } .item.q3 { color: var(--q3); } .item.q4 { color: var(--q4); } .item.q5 { color: var(--q5); }
 /* rewards as the quest window shows them: icon, count in its corner, the name on the game's plate */
 .paper .rewards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 14px; margin: 6px 0 14px; padding: 0; list-style: none; }
 .reward { display: flex; align-items: center; height: 42px; text-decoration: none; }

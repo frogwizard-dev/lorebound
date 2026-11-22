@@ -6,18 +6,37 @@ PC and on GitHub's machines, which have no game. wago.tools's copies are cached 
     files = GameFiles()
     raw = files.read_fdid(1139443)             # QuestV2.db2
     raw = files.read_name("interface/icons/inv_misc_book_09.blp")
+    rows = wago_csv("ItemSparse")               # one of Forever's tables, as CSV rows
 """
+import csv
 import json
 import os
+import time
+import urllib.error
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CACHE = os.path.join(HERE, "lore_sources", "files")
 LISTFILES = (os.path.join(HERE, "listfile", "community-listfile.csv"),  # the whole community listfile, on this PC
              os.path.join(HERE, "listfile-lorebound.csv"))             # the parts the tools use, kept in the repo
-AGENT = {"User-Agent": "Mozilla/5.0 (compatible; loremaster-data)"}
+AGENT = {"User-Agent": "Mozilla/5.0 (compatible; lorebound-data)"}
 BUILDS = "https://wago.tools/api/builds"
 FILE = "https://wago.tools/api/casc/%d?download&version=%s"
+TABLE = "https://wago.tools/db2/%s/csv?product=wowf"
+
+
+def wago_csv(table):
+    """Forever's table from wago.tools as CSV rows (cached in lore_sources for a day): the client's own data,
+    also for tables db2.py can't parse."""
+    path = os.path.join(HERE, "lore_sources", table + ".csv")
+    if not os.path.exists(path) or time.time() - os.path.getmtime(path) > 24 * 3600:
+        with urllib.request.urlopen(urllib.request.Request(TABLE % table, headers=AGENT), timeout=60) as res:
+            raw = res.read()
+        with open(path, "wb") as f:
+            f.write(raw)
+    csv.field_size_limit(10 ** 7)  # ItemSparse's descriptions
+    with open(path, encoding="utf-8") as f:
+        return list(csv.DictReader(f))
 
 
 class GameFiles:

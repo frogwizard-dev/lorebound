@@ -30,8 +30,8 @@ let showLocked = false
 let side = 'both'       // with no character: whose quests to show (alliance, horde or both), remembered
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
-const share = (done, total) => (total > 0 ? done / total : 0)
-const percent = (done, total) => Math.floor(share(done, total) * 100) + '%'
+const fraction = (done, total) => (total > 0 ? done / total : 0)
+const percent = (done, total) => Math.floor(fraction(done, total) * 100) + '%'
 const number = (n) => n.toLocaleString('en-GB')
 const store = {
   get(key) { try { return JSON.parse(localStorage.getItem(key)) } catch { return null } },
@@ -114,10 +114,10 @@ function questsFor(list, faction) {
 
 function makeView(list, progress, base) {
   const quests = questsFor(list, progress ? progress.faction : side === 'horde' ? 2 : 0)
-  const zones = list.zones.map((z) => ({ name: z[0], group: z[1], map: z[2], journal: z[3] }))
+  const zones = list.zones.map((zone) => ({ name: zone[0], group: zone[1], map: zone[2], journal: zone[3] }))
   // Learned quests in zones the list hasn't got make new zones under Other, as in game (Lore.lua).
   for (const quest of progress ? progress.learnt : []) {
-    if (!zones.some((z) => z.name === quest.zone)) zones.push({ name: quest.zone, group: OTHER_GROUP })
+    if (!zones.some((zone) => zone.name === quest.zone)) zones.push({ name: quest.zone, group: OTHER_GROUP })
   }
   const view = { list, quests, zones, progress, base }
   view.counts = count(view)
@@ -145,28 +145,28 @@ function visible(id, view = shown) {
 function count(view) {
   const zones = view.zones.map(() => ({ done: 0, total: 0, locked: 0 }))
   const add = (zoneIndex, status) => {
-    const z = zones[zoneIndex]
-    if (!z || status === 'hidden') return
-    if (status === 'locked') { z.locked++; return }
-    z.total++
-    if (status === 'done' || status === 'skip') z.done++
+    const tally = zones[zoneIndex]
+    if (!tally || status === 'hidden') return
+    if (status === 'locked') { tally.locked++; return }
+    tally.total++
+    if (status === 'done' || status === 'skip') tally.done++
   }
   for (const id of view.list.ids) if (visible(id, view)) add(view.quests[id][view.list.field.zone] - 1, statusOf(id, view))
-  for (const quest of view.progress ? view.progress.learnt : []) add(view.zones.findIndex((z) => z.name === quest.zone), quest.status)
+  for (const quest of view.progress ? view.progress.learnt : []) add(view.zones.findIndex((tally) => tally.name === quest.zone), quest.status)
   const groups = view.list.groups.map(() => ({ done: 0, total: 0 }))
   const all = { done: 0, total: 0 }
-  zones.forEach((z, i) => {
-    const g = view.zones[i].group
-    groups[g - 1].done += z.done
-    groups[g - 1].total += z.total
-    if (IN_TOTAL.has(g)) { all.done += z.done; all.total += z.total }
+  zones.forEach((tally, i) => {
+    const group = view.zones[i].group
+    groups[group - 1].done += tally.done
+    groups[group - 1].total += tally.total
+    if (IN_TOTAL.has(group)) { all.done += tally.done; all.total += tally.total }
   })
   return { zones, groups, all }
 }
 
 function levels(zoneIndex) {
-  const found = shown.list.ids.map(row).filter((q) => field(q, 'zone') === zoneIndex + 1)
-    .map((q) => field(q, 'level')).filter((l) => l > 0).sort((a, b) => a - b)
+  const found = shown.list.ids.map(row).filter((quest) => field(quest, 'zone') === zoneIndex + 1)
+    .map((quest) => field(quest, 'level')).filter((level) => level > 0).sort((a, b) => a - b)
   if (!found.length) return ''
   const low = found[Math.floor(found.length * 0.1)]
   const high = found[Math.min(found.length - 1, Math.floor(found.length * 0.9))]
@@ -190,9 +190,9 @@ function rings(list, size) {
   const gap = size * 0.03
   let radius = size / 2 - width / 2
   const middle = size / 2
-  const parts = list.map(({ share: s, color }) => {
+  const parts = list.map(({ share, color }) => {
     const length = 2 * Math.PI * radius
-    const arc = Math.max(0, Math.min(1, s)) * length
+    const arc = Math.max(0, Math.min(1, share)) * length
     const circle = (cls, extra) => `<circle class="${cls} c-${color}" cx="${middle}" cy="${middle}" r="${radius}" stroke-width="${width}"${extra}/>`
     const svg = circle('ring-track', '') + (arc > 0.01
       ? circle('ring-fill', ` stroke-dasharray="${arc} ${length}" transform="rotate(-90 ${middle} ${middle})"`) : '')
@@ -229,17 +229,17 @@ function badge(kind, value, size) {
 }
 
 function badgeCount(kind, value) {
-  const c = shown.counts
-  if (kind === 'zone') return c.zones[value]
-  if (kind === 'group') return c.groups[value - 1]
-  return c.all
+  const counts = shown.counts
+  if (kind === 'zone') return counts.zones[value]
+  if (kind === 'group') return counts.groups[value - 1]
+  return counts.all
 }
 
 function isEarned(kind, value) {
-  const p = shown.progress
-  if (!p) return false
+  const progress = shown.progress
+  if (!progress) return false
   const { done, total } = badgeCount(kind, value)
-  return p.earned.has(badgeKey(kind, value)) || (total > 0 && done >= total)
+  return progress.earned.has(badgeKey(kind, value)) || (total > 0 && done >= total)
 }
 
 // The code's badge keys (Export.lua): a list zone by its number, a zone only learned quests made by its name.
@@ -259,24 +259,24 @@ function badgeName(kind, value) {
 // ---------------------------------------------------------------- the zone list (the left side)
 
 function drawSide() {
-  const c = shown.counts
+  const counts = shown.counts
   const mine = !!shown.progress
   let html = mine ? '' : `<div class="sides" role="group" aria-label="Whose quests">${[['alliance', 'Alliance'], ['horde', 'Horde'], ['both', 'Both']]
     .map(([key, label]) => `<button type="button" data-side="${key}" aria-pressed="${side === key}">${label}</button>`).join('')}</div>`
-  shown.list.groups.forEach((groupName, g) => {
-    const zones = shown.zones.map((zone, i) => [zone, i]).filter(([zone, i]) => zone.group === g + 1 && c.zones[i].total > 0)
+  shown.list.groups.forEach((groupName, groupIndex) => {
+    const zones = shown.zones.map((zone, i) => [zone, i]).filter(([zone, i]) => zone.group === groupIndex + 1 && counts.zones[i].total > 0)
     if (!zones.length) return
-    const gc = c.groups[g]
+    const groupCount = counts.groups[groupIndex]
     const open = !folded.has(groupName)
-    html += `<button type="button" class="group" data-fold="${esc(groupName)}" aria-expanded="${open}">${esc(groupName)}<span class="count">${mine ? `${number(gc.done)} / ${number(gc.total)}` : number(gc.total)}</span></button>
+    html += `<button type="button" class="group" data-fold="${esc(groupName)}" aria-expanded="${open}">${esc(groupName)}<span class="count">${mine ? `${number(groupCount.done)} / ${number(groupCount.total)}` : number(groupCount.total)}</span></button>
       <div class="group-zones"${open ? '' : ' hidden'}>`
     for (const [zone, i] of zones) {
-      const zc = c.zones[i]
-      const closed = mine && zc.done >= zc.total
+      const zoneCount = counts.zones[i]
+      const closed = mine && zoneCount.done >= zoneCount.total
       html += `<a class="zone-row${closed ? ' closed' : ''}" href="${shown.base}/zone/${i + 1}" data-zone="${i + 1}"${artStyle(zoneArt(zone))}>
-        ${mine ? rings([{ share: share(zc.done, zc.total), color: closed ? 'gold' : 'zone' }], 30) : ''}
+        ${mine ? rings([{ share: fraction(zoneCount.done, zoneCount.total), color: closed ? 'gold' : 'zone' }], 30) : ''}
         <span class="text"><span class="name">${esc(zone.name)}</span><br><span class="levels">${levels(i)}</span></span>
-        <span class="tally">${mine ? `${zc.done} / ${zc.total}` : `${zc.total} quest${zc.total === 1 ? '' : 's'}`}</span></a>`
+        <span class="tally">${mine ? `${zoneCount.done} / ${zoneCount.total}` : `${zoneCount.total} quest${zoneCount.total === 1 ? '' : 's'}`}</span></a>`
     }
     html += '</div>'
   })
@@ -314,7 +314,7 @@ search.addEventListener('input', () => {
 })
 
 function markSide(zoneNumber) {
-  sidePane.querySelectorAll('.zone-row').forEach((a) => a.classList.toggle('on', +a.dataset.zone === zoneNumber))
+  sidePane.querySelectorAll('.zone-row').forEach((row) => row.classList.toggle('on', +row.dataset.zone === zoneNumber))
 }
 
 // ---------------------------------------------------------------- the overview
@@ -328,10 +328,10 @@ function banner({ art, title, sub, meta, ringList, legend }) {
 }
 
 function drawOverview() {
-  const c = shown.counts
-  const p = shown.progress
+  const counts = shown.counts
+  const progress = shown.progress
   const total = shown.list.ids.length
-  if (!p) {
+  if (!progress) {
     const problem = shown.problem ? `<div class="section"><p class="bad">${esc(shown.problem)}</p></div>` : ''
     page.innerHTML = problem + banner({
       art: '/art/map-947.webp',
@@ -344,28 +344,28 @@ function drawOverview() {
       say why, and a private link puts it on your phone.</p></div>`
     return
   }
-  const ek = c.groups[0]
-  const kal = c.groups[1]
-  const who = [p.level && `Level ${p.level}`, RACES[p.race], CLASSES[p.cls]].filter(Boolean).join(' ')
-  const when = new Date(p.time * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  const ek = counts.groups[0]
+  const kal = counts.groups[1]
+  const who = [progress.level && `Level ${progress.level}`, RACES[progress.race], CLASSES[progress.cls]].filter(Boolean).join(' ')
+  const when = new Date(progress.time * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
   let html = banner({
     art: '/art/map-947.webp',
-    title: esc(p.name || 'Your character'),
-    sub: esc(who) + (p.realm ? `, ${esc(p.realm)}` : ''),
-    meta: `Exported ${esc(when)}. ${p.today} turned in that day, ${p.week} that week.`,
-    ringList: [{ share: share(ek.done, ek.total), color: 'zone' }, { share: share(kal.done, kal.total), color: 'group' },
-      { share: share(c.all.done, c.all.total), color: 'total' }],
+    title: esc(progress.name || 'Your character'),
+    sub: esc(who) + (progress.realm ? `, ${esc(progress.realm)}` : ''),
+    meta: `Exported ${esc(when)}. ${progress.today} turned in that day, ${progress.week} that week.`,
+    ringList: [{ share: fraction(ek.done, ek.total), color: 'zone' }, { share: fraction(kal.done, kal.total), color: 'group' },
+      { share: fraction(counts.all.done, counts.all.total), color: 'total' }],
     legend: [['zone', `Eastern Kingdoms ${number(ek.done)} / ${number(ek.total)}`],
       ['group', `Kalimdor ${number(kal.done)} / ${number(kal.total)}`],
-      ['total', `Lorebound ${number(c.all.done)} / ${number(c.all.total)}, ${percent(c.all.done, c.all.total)}`]],
+      ['total', `Lorebound ${number(counts.all.done)} / ${number(counts.all.total)}, ${percent(counts.all.done, counts.all.total)}`]],
   })
   // Each group's badges fold away on a phone, where the zone list follows the page.
   const open = window.matchMedia('(min-width: 901px)').matches ? ' open' : ''
   let earned = 0
   let all = 0
   let groupsHtml = ''
-  shown.list.groups.forEach((groupName, g) => {
-    const zones = shown.zones.map((zone, i) => i).filter((i) => shown.zones[i].group === g + 1 && (c.zones[i].total > 0 || isEarned('zone', i)))
+  shown.list.groups.forEach((groupName, groupIndex) => {
+    const zones = shown.zones.map((zone, i) => i).filter((i) => shown.zones[i].group === groupIndex + 1 && (counts.zones[i].total > 0 || isEarned('zone', i)))
     if (!zones.length) return
     const got = zones.filter((i) => isEarned('zone', i)).length
     all += zones.length
@@ -502,26 +502,26 @@ function questList(ids) {
 function drawZone(number) {
   const zone = shown.zones[number - 1]
   if (!zone) return drawOverview()
-  const c = shown.counts
-  const zc = c.zones[number - 1]
-  const p = shown.progress
+  const counts = shown.counts
+  const zoneCount = counts.zones[number - 1]
+  const progress = shown.progress
   const byLevel = (a, b) => (field(row(a), 'level') || 0) - (field(row(b), 'level') || 0) || a - b
   const ids = shown.list.ids.filter((id) => field(row(id), 'zone') === number && visible(id)).sort(byLevel)
   const storylines = chained(ids).length
   const group = shown.list.groups[zone.group - 1] || 'Other'
   let ringList = null
   let meta = `${esc(group)}${levels(number - 1) ? `, ${levels(number - 1).toLowerCase()}` : ''}`
-  if (p) {
-    const gc = c.groups[zone.group - 1]
-    ringList = [{ share: share(zc.done, zc.total), color: zc.done >= zc.total && zc.total ? 'gold' : 'zone' },
-      { share: share(gc.done, gc.total), color: 'group' }, { share: share(c.all.done, c.all.total), color: 'total' }]
-    meta += `. ${zc.done} of ${zc.total} done${zc.locked ? `, ${zc.locked} locked out` : ''}.`
+  if (progress) {
+    const groupCount = counts.groups[zone.group - 1]
+    ringList = [{ share: fraction(zoneCount.done, zoneCount.total), color: zoneCount.done >= zoneCount.total && zoneCount.total ? 'gold' : 'zone' },
+      { share: fraction(groupCount.done, groupCount.total), color: 'group' }, { share: fraction(counts.all.done, counts.all.total), color: 'total' }]
+    meta += `. ${zoneCount.done} of ${zoneCount.total} done${zoneCount.locked ? `, ${zoneCount.locked} locked out` : ''}.`
   } else {
     meta += `. ${ids.length} quest${ids.length === 1 ? '' : 's'}${storylines < ids.length ? ` in ${storylines} storylines` : ''}${side === 'both' ? ', both sides' : ''}.`
   }
   let html = `<a class="back" href="${shown.base || '/'}">All zones</a>` +
     banner({ art: zoneArt(zone), title: esc(zone.name), sub: meta, ringList })
-  if (p) {
+  if (progress) {
     html += `<div class="filters" role="group" aria-label="Show">
       ${[['todo', 'To do'], ['done', 'Done'], ['all', 'All']].map(([key, label]) =>
         `<button type="button" data-filter="${key}" class="${filter === key ? 'on' : ''}" aria-pressed="${filter === key}">${label}</button>`).join('')}
@@ -532,7 +532,7 @@ function drawZone(number) {
       const list = ids.filter((id) => statusOf(id) === key)
       if (list.length) html += `<div class="heading">${title} <span class="muted">${list.length}</span></div>${questList(list)}`
     }
-    const learnt = p.learnt.filter((quest) => quest.zone === zone.name && wanted.has(quest.status))
+    const learnt = progress.learnt.filter((quest) => quest.zone === zone.name && wanted.has(quest.status))
     if (learnt.length) {
       html += `<div class="heading">Met in game <span class="muted">not in the quest list yet</span></div><ul class="quests">${learnt.map((quest) =>
         `<li class="quest st-${quest.status}"><details><summary><span class="mark">${MARKS[quest.status] || ''}</span>
@@ -587,16 +587,17 @@ function sideOf(quest, list = shown.list) {
 
 function money(copper) {
   const parts = [[Math.floor(copper / 10000), 'g'], [Math.floor(copper / 100) % 100, 's'], [copper % 100, 'c']]
-  return parts.filter(([n]) => n > 0).map(([n, unit]) => `${n}${unit}`).join(' ')
+  return parts.filter(([amount]) => amount > 0).map(([amount, unit]) => `${amount}${unit}`).join(' ')
 }
 
-const paragraphs = (list) => (list || []).map((p) => `<p>${esc(p)}</p>`).join('')
+const paragraphs = (list) => (list || []).map((text) => `<p>${esc(text)}</p>`).join('')
 
 // A reward as the quest window shows it (ItemButtonTemplate): the icon, its count in the corner, the name on
-// its plate. Hovering shows Wowhead's Forever tooltip for the item.
-function rewardSlot([id, count, name, quality, icon]) {
+// its plate (in light text whatever its quality, as the game's window has it). Hovering shows Wowhead's Forever
+// tooltip for the item.
+function rewardSlot([id, count, name, , icon]) {
   const picture = icon ? `https://wow.zamimg.com/images/wow/icons/large/${encodeURIComponent(icon)}.jpg` : ''
-  return `<li><a class="reward q${quality ?? 1}" href="https://www.wowhead.com/forever/item=${id}" target="_blank" rel="noopener">
+  return `<li><a class="reward" href="https://www.wowhead.com/forever/item=${id}" target="_blank" rel="noopener">
     <span class="slot">${picture ? `<img src="${picture}" alt="" loading="lazy" width="40" height="40">` : ''}${count > 1 ? `<span class="count">${count}</span>` : ''}</span>
     <span class="plate">${esc(name || `Item ${id}`)}</span></a></li>`
 }
@@ -608,10 +609,10 @@ function questLink(id, text = questName(id)) {
 
 // Where the quest happens: the zone's map with the giver (!), who takes it in (?) and its objectives (dots).
 function questMap(data, quest) {
-  const maps = new Set(shown.zones.map((z) => z.map).filter(Boolean))
+  const maps = new Set(shown.zones.map((zone) => zone.map).filter(Boolean))
   const zoneMap = (shown.zones[field(quest, 'zone') - 1] || {}).map
   const order = [data.start[1], ...Object.keys(data.spots || {}).map(Number), data.end[1], zoneMap]
-  const map = order.find((m) => m && maps.has(m))
+  const map = order.find((candidate) => candidate && maps.has(candidate))
   if (!map) return ''
   const pin = (x, y, cls, text) => `<span class="pin ${cls}" style="left:${x}%;top:${y}%">${text}</span>`
   let pins = (data.spots[String(map)] || []).map(([x, y]) => pin(x, y, 'spot', '')).join('')
@@ -620,7 +621,7 @@ function questMap(data, quest) {
     pins += pin(data.end[2] + (shared ? 2.2 : 0), data.end[3], 'end', '?') // beside the ! when it's the same person
   }
   if (data.start[1] === map && data.start[2] != null) pins += pin(data.start[2], data.start[3], 'start', '!')
-  const name = (shown.zones.find((z) => z.map === map) || {}).name || ''
+  const name = (shown.zones.find((zone) => zone.map === map) || {}).name || ''
   const figure = (cls) => `<div class="qmap ${cls}"><img src="/art/map-${map}.webp" alt="Map of ${esc(name)}">${pins}</div>`
   return `<button type="button" class="mapbutton" id="openmap" aria-label="Show the map larger">${figure('small')}</button>
     <p class="legend-line"><span class="pin-key start">!</span> Pick up <span class="pin-key end">?</span> Hand in
@@ -634,7 +635,7 @@ function fact(label, value) {
 
 function placeText(name, map, x, y) {
   if (!name) return ''
-  const zone = shown.zones.find((z) => z.map === map)
+  const zone = shown.zones.find((entry) => entry.map === map)
   return `${esc(name)}${zone && x != null ? `<br><span class="muted">${esc(zone.name)} ${x}, ${y}</span>` : ''}`
 }
 
@@ -661,22 +662,23 @@ async function drawQuest(id) {
     page.innerHTML = html + `<p class="bad">Couldn't load this quest's page. Check your connection and try again.</p></section>`
     return
   }
-  const note = data.same === true ? "Forever's objective is Classic's word for word, so the text and rewards below are Classic's."
+  const note = data.shared ? "Forever's own text, as players saw it in game."
+    : data.same === true ? "Forever's objective is Classic's word for word, so the text and rewards below are Classic's."
     : data.same === false ? "Forever changed this quest. The objective is Forever's own; its full text and rewards aren't known yet."
       : data.text ? "Classic's text and rewards, not yet checked against Forever."
         : "New in Forever. Its full text and rewards aren't known yet."
   html += `<p class="note">${note}</p></section><div class="qgrid"><article class="paper">
     <h2>Objectives</h2>${paragraphs(data.objective)}
-    ${data.needs.length ? `<ul class="needs">${data.needs.map(([what, n]) => `<li>${esc(what)}<b>${status === 'done' || status === 'skip' ? `${n}/${n}` : `x${n}`}</b></li>`).join('')}</ul>` : ''}`
+    ${data.needs.length ? `<ul class="needs">${data.needs.map(([what, count]) => `<li>${esc(what)}<b>${status === 'done' || status === 'skip' ? `${count}/${count}` : `x${count}`}</b></li>`).join('')}</ul>` : ''}`
   if (data.text && data.text.description.length) html += `<h2>Description</h2>${paragraphs(data.text.description)}`
-  const r = data.rewards
-  if (r) {
+  const rewards = data.rewards
+  if (rewards) {
     html += '<h2>Rewards</h2>'
-    if (r.choose.length) html += `<p>You will be able to choose one of these:</p><ul class="rewards">${r.choose.map(rewardSlot).join('')}</ul>`
-    if (r.items.length) html += `<p>You will receive:</p><ul class="rewards">${r.items.map(rewardSlot).join('')}</ul>`
-    if (r.money) html += `<p>${money(r.money)}</p>`
-    if (r.spell) html += `<p><a href="https://www.wowhead.com/forever/spell=${r.spell}" target="_blank" rel="noopener">A spell</a> is cast on you.</p>`
-    for (const [factionId, value] of r.rep) html += `<p>${value > 0 ? '+' : ''}${value} reputation with ${esc(faction(factionId))}</p>`
+    if (rewards.choose.length) html += `<p>You will be able to choose one of these:</p><ul class="rewards">${rewards.choose.map(rewardSlot).join('')}</ul>`
+    if (rewards.items.length) html += `<p>You will receive:</p><ul class="rewards">${rewards.items.map(rewardSlot).join('')}</ul>`
+    if (rewards.money) html += `<p>${money(rewards.money)}</p>`
+    if (rewards.spell) html += `<p><a href="https://www.wowhead.com/forever/spell=${rewards.spell}" target="_blank" rel="noopener">A spell</a> is cast on you.</p>`
+    for (const [factionId, value] of rewards.rep) html += `<p>${value > 0 ? '+' : ''}${value} reputation with ${esc(faction(factionId))}</p>`
   }
   if (data.text && data.text.progress.length) html += `<details><summary>When you come back</summary>${paragraphs(data.text.progress)}</details>`
   if (data.text && data.text.completion.length) html += `<details><summary>On completion</summary>${paragraphs(data.text.completion)}</details>`
@@ -690,9 +692,9 @@ async function drawQuest(id) {
     ${fact('Quest ID', `<a href="https://www.wowhead.com/forever/quest=${id}" target="_blank" rel="noopener">${id}</a>`)}</dl>`
   if (data.chain.length > 1) {
     html += `<h2 class="side-head">Quest chain <span class="muted">${data.chain.length} quests</span></h2><ol class="chain">${data.chain.map((step) => {
-      const st = statusOf(step)
+      const stepStatus = statusOf(step)
       const here = step === id
-      return `<li class="${here ? 'here' : ''} st-${st || 'none'}"><span class="mark">${st ? MARKS[st] || '' : ''}</span>
+      return `<li class="${here ? 'here' : ''} st-${stepStatus || 'none'}"><span class="mark">${stepStatus ? MARKS[stepStatus] || '' : ''}</span>
         ${here ? `<b>${esc(questName(step))}</b>` : questLink(step)}
         <span class="muted">${field(row(step), 'level') > 0 ? field(row(step), 'level') : ''}</span></li>`
     }).join('')}</ol>`
@@ -721,15 +723,15 @@ function wowheadTooltips() {
 
 // ---------------------------------------------------------------- your code and phone link (/me)
 
-const linkKey = (p) => `lm:link:${p.name}-${p.realm}`
+const linkKey = (progress) => `lm:link:${progress.name}-${progress.realm}`
 
 // The link saved for this character; one saved before codes carried the surname moves to the full name.
-function savedLink(p) {
-  const found = store.get(linkKey(p))
+function savedLink(progress) {
+  const found = store.get(linkKey(progress))
   if (found) return found
-  const before = `lm:link:${String(p.name).split(' ')[0]}-${p.realm}`
-  const old = before !== linkKey(p) && store.get(before)
-  if (old) { store.set(linkKey(p), old); store.drop(before) }
+  const before = `lm:link:${String(progress.name).split(' ')[0]}-${progress.realm}`
+  const old = before !== linkKey(progress) && store.get(before)
+  if (old) { store.set(linkKey(progress), old); store.drop(before) }
   return old || null
 }
 const SAVE_ERRORS = {
@@ -901,7 +903,7 @@ async function route() {
   const stale = () => nav !== navSeq
   const path = location.pathname.replace(/\/+$/, '') || '/'
   delete page.dataset.search
-  document.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('on', a.dataset.nav === (path === '/me' ? 'me' : 'quests')))
+  document.querySelectorAll('[data-nav]').forEach((navLink) => navLink.classList.toggle('on', navLink.dataset.nav === (path === '/me' ? 'me' : 'quests')))
   if (path.startsWith('/p/') || path === '/p') {
     const link = path.match(/^\/p\/([A-Za-z0-9]{10})(?:\/(zone|quest)\/(\d+))?$/)
     if (!link) { document.body.classList.remove('at-zone'); notFound("That isn't a Lorebound link."); return true }
@@ -954,11 +956,11 @@ function show(toTop = true) {
 }
 
 document.addEventListener('click', (event) => {
-  const a = event.target.closest('a')
-  if (!a || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-  if (a.target || a.origin !== location.origin || /^\/(report|api|art|data)/.test(a.pathname)) return
+  const link = event.target.closest('a')
+  if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  if (link.target || link.origin !== location.origin || /^\/(report|api|art|data)/.test(link.pathname)) return
   event.preventDefault()
-  go(a.pathname)
+  go(link.pathname)
 })
 window.addEventListener('popstate', () => show())
 

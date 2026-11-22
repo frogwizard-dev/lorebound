@@ -33,7 +33,7 @@ Open a quest for its objective, its text from when you last read it, and who giv
 
 ## Learns as you play
 
-When you meet a quest that isn't in its list, Lorebound adds it as you go. Share new ones from the journal at lb.frogwizard.net/report and they join the list for everyone.
+When you meet a quest that isn't in its list, Lorebound adds it as you go. Many quests changed in Forever, and Lorebound keeps their text as you read it too. Share both from the journal at lb.frogwizard.net/report and they join the list for everyone (your character's name is left out of the text).
 
 ## On your phone
 

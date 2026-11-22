@@ -1,5 +1,19 @@
 # Lorebound
 
+## 0.2.0
+
+- **Your race's class quests only**: where a class quest comes in one version per race (Call of Earth in Durotar,
+  Mulgore and on Zephras Isle), the other races' versions are left out instead of showing as done or still to do.
+  If you took another race's version, that one shows.
+- **Share quest text**: Share quests (it was Share new quests) now also sends the Forever text you read for quests
+  Lorebound only has Classic's text for, or none: about 1,700 quests that changed or are new in Forever. Text is
+  kept with your character's name taken out from now on, and only that is shared (English clients). Once it's
+  checked, the text joins those quests' pages for everyone, marked as players' text.
+- **When you come back**: the quest page keeps what the quest giver says when you return, as it does the rest.
+- **Lighter quest pages**: their text comes in three parts (Eastern Kingdoms, Kalimdor, and the rest), and only the
+  part a quest is in loads, kept as text until a page is shown: about a fifth of the memory it took.
+- **Fix**: a quest you'd met with a backtick in its name was left out of the code you shared.
+
 ## 0.1.0
 
 - **The journal** (`/lb` or `/lorebound`, a key of your choice in Key Bindings > AddOns, LT + L3 on a

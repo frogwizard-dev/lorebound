@@ -1,4 +1,4 @@
--- D1 schema for the report endpoint's per-IP rate limit (hashed IPs only).
+-- D1 schema: the endpoints' per-IP rate limit (hashed IPs only) and the progress links.
 --   wrangler d1 execute loremaster-report --remote --file=schema.sql
 -- Without the binding the endpoint skips rate limiting (and logs a warning).
 
