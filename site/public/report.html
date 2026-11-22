@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report a quest: Lorebound</title>
+<meta name="description" content="Send quests Lorebound hasn't got yet, for the next quest list.">
+<meta name="theme-color" content="#0e0d11">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="bar">
+  <a class="wordmark" href="/">Lorebound</a>
+  <nav>
+    <a href="/">Quests</a>
+    <a href="/me">My progress</a>
+    <a href="/report" class="on">Report</a>
+  </nav>
+</header>
+<main class="form">
+  <h1>Report a quest</h1>
+  <p class="lead">Met quests Lorebound doesn't know? The journal notes them as you play. Send them here and they join
+    the quest list for everyone.</p>
+  <ol>
+    <li>In game, open the journal (<code>/lb</code>) and press <b>Share new quests</b> on the overview.</li>
+    <li>Copy the code with Ctrl+C and paste it below.</li>
+    <li>Press <b>Send</b>, then <b>Mark as shared</b> in game.</li>
+  </ol>
+  <form id="form">
+    <textarea id="code" placeholder="Lorebound quests (client ...):&#10;LM1^..." spellcheck="false" autocomplete="off" aria-label="Quest report code"></textarea>
+    <div class="trap" aria-hidden="true"><label>Leave this empty <input id="honeypot" tabindex="-1" autocomplete="off"></label></div>
+    <div class="actions"><button class="button" id="send" type="submit">Send</button></div>
+  </form>
+  <div class="say" id="status" role="status"></div>
+  <p class="muted">Only the quest lines are sent: the quest, its zone and level, and who gives it and takes it in.
+    Each report becomes a public issue on GitHub. Every quest is checked against the game's own quest list and
+    Wowhead before it's added.</p>
+</main>
+<script>
+  const form = document.getElementById('form')
+  const code = document.getElementById('code')
+  const send = document.getElementById('send')
+  const status = document.getElementById('status')
+  const say = (text, kind) => { status.textContent = text; status.className = 'say ' + (kind || '') }
+  const errors = {
+    no_code: 'Paste the code from the Share new quests box first.',
+    no_loremaster_lines: "That isn't Lorebound's report code: its lines start with LM1^.",
+    too_long: 'That report is too long for one go. Send half, then the rest.',
+    rate_limited: "That's plenty of reports from here today, thank you. Try again tomorrow.",
+    rate_limited_cooldown: 'Sent a moment ago. Wait a few seconds, then send again.',
+    not_configured: "Reports aren't switched on yet. Try again later.",
+    github_failed: "GitHub didn't take the report. Try again in a few minutes.",
+  }
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    if (!/^LM1\^/m.test(code.value)) { say(errors.no_loremaster_lines, 'bad'); return }
+    send.disabled = true
+    say('Sending...')
+    try {
+      const res = await fetch('/api/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code.value, honeypot: document.getElementById('honeypot').value }),
+      })
+      const answer = await res.json().catch(() => ({}))
+      if (res.ok) {
+        code.value = ''
+        say('Sent, thank you. ', 'ok')
+        if (answer.url) {
+          const link = document.createElement('a')
+          link.href = answer.url
+          link.textContent = 'See your report'
+          status.append(link)
+        }
+      } else {
+        say(errors[answer.error] || `The site said no (${res.status}). Try again in a minute.`, 'bad')
+      }
+    } catch {
+      say("Couldn't reach the site. Check your connection and try again.", 'bad')
+    }
+    send.disabled = false
+  })
+</script>
+</body>
+</html>

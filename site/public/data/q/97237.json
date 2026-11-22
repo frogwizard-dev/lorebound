@@ -1,0 +1,1 @@
+{"objective":["Find each of the reading materials located somewhere in the library and then return to Roy Lewells in Stormwind's Park."],"needs":[],"same":null,"start":["Donyal Tovald",1453,75,30.1],"end":["Roy Lewells",1453,38.8,62.4],"chain":[97234,97237],"spots":{"1453":[[76,31],[75.6,30.5],[76.5,30.4],[76.2,29.2]]}}

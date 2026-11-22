@@ -1,0 +1,1 @@
+{"objective":["Find the cultist turncoat at the house just inside the highlands northwest of Valanaar."],"needs":[],"same":null,"start":["Talaanis Shadowsong",2521,66.2,76.5],"end":["Dead Cultist",2521,56.2,59],"chain":[92880,92881,92643,92644,94568,92640,93065,92947,93958],"spots":{"2521":[[56.2,60.6],[56.2,59]]}}

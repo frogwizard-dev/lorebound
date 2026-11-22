@@ -1,0 +1,16 @@
+# Made by the tools or on players' PCs, never part of the add-on or the repository
+*.zip
+*.tmp
+Thumbs.db
+desktop.ini
+.DS_Store
+__pycache__/
+# Downloads the tools cache: game files from wago.tools, CMaNGOS's database and its extract (fetched again as needed)
+tools/lore_sources/files/
+tools/lore_sources/classicdb.sql.gz
+tools/lore_sources/classic_quests.json
+tools/lore_sources/*.csv
+tools/lore_sources/wowhead.log
+# The site's own tooling
+site/node_modules/
+site/.wrangler/

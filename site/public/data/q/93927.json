@@ -1,0 +1,1 @@
+{"objective":["Collect the note you found near the dead peacekeeper and read it to determine your next steps."],"needs":[],"same":null,"start":["Peacekeeper Vaaniel",2521,42.3,62],"end":["Constable Aonda",2521,45.7,45.5],"chain":[93926,93927],"spots":{"2521":[[41,64.1],[41.5,63],[42.4,62.1],[41.1,64.1],[41,64.1]]}}

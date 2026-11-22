@@ -1,0 +1,442 @@
+/* Lorebound's site. The journal's own look: zones down the left with their maps behind them, the page on the
+   right, the game's art carrying the colour. One surface; rows are hairlines and space, not boxes. Colour
+   means something (the rings, a quest's state) and always sits beside words. Figtree throughout. */
+
+:root {
+  --bg: #0e0d11;
+  --raised: #17161c;
+  --line: #2b2931;
+  --text: #ece6da;
+  --muted: #a39c90;
+  --faint: #6f695f;
+  --gold: #ffd140;          /* the game's title gold: names of zones and characters */
+  --ember: #ff553d;         /* the zone's ring */
+  --arcane: #a366ff;        /* the continent's ring */
+  --jade: #1fdb9e;          /* the Lorebound ring */
+  --done: #6fd08c;
+  --locked: #e27272;
+  --scrim: rgb(14 13 17 / 0.76);
+  --scrim-banner: rgb(14 13 17 / 0.7);
+  --scrim-hover: rgb(14 13 17 / 0.62);
+  --scrim-on: rgb(14 13 17 / 0.45);
+  --paper: #ffffff;         /* behind the QR code, so phones can read it */
+  --ink: #2e1d0e;           /* writing on the quest parchment */
+  --ink-head: #5a2d0c;
+  --ink-line: rgb(46 29 14 / 0.25);
+  --q2: #157a00; --q3: #0058b0; --q4: #7a2bb5; --q5: #b35a00; /* item quality, the game's colours darkened for paper */
+  --pin-spot: #e8402e;
+  --side: 340px;
+  --radius: 6px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 15px/1.5 Figtree, system-ui, sans-serif;
+}
+a { color: inherit; }
+button, input, textarea { font: inherit; color: inherit; }
+h1, h2, h3 { margin: 0; line-height: 1.2; }
+.muted { color: var(--muted); }
+.pad { padding: 24px; }
+.hidden { display: none !important; }
+
+/* ---------------------------------------------------------------- the bar */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 56px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+.wordmark { font-weight: 800; font-size: 19px; letter-spacing: -0.01em; text-decoration: none; }
+.bar nav { display: flex; gap: 4px; overflow-x: auto; }
+.bar nav a {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 10px;
+  color: var(--muted);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bar nav a.on { color: var(--text); box-shadow: inset 0 -2px 0 var(--gold); }
+
+/* ---------------------------------------------------------------- the two panes */
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--side) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "find page" "side page";
+  min-height: calc(100vh - 56px);
+}
+#find { grid-area: find; border-right: 1px solid var(--line); }
+#side {
+  grid-area: side;
+  border-right: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+#page { grid-area: page; min-width: 0; padding-bottom: 48px; outline: none; }
+
+/* ---------------------------------------------------------------- the zone list */
+
+.search { padding: 12px; border-bottom: 1px solid var(--line); }
+.search input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
+  font-size: 16px;
+}
+.search input:focus-visible, textarea:focus-visible { outline: 2px solid var(--text); outline-offset: -1px; }
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px 8px;
+  border: 0;
+  background: none;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.group::before { content: ""; width: 7px; height: 7px; border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(45deg); margin: 0 4px 3px 0; flex: 0 0 auto; }
+.group[aria-expanded="false"]::before { transform: rotate(-45deg); margin-bottom: 0; }
+.group:hover { color: var(--gold); }
+.group .count { margin-left: auto; font-size: 13px; font-weight: 500; color: var(--muted); }
+
+/* with no character: whose quests to list */
+.sides { display: flex; gap: 4px; padding: 10px 12px 2px; }
+.sides button { flex: 1; height: 40px; border: 1px solid var(--line); border-radius: var(--radius); background: none; color: var(--muted); font-weight: 600; cursor: pointer; }
+.sides button[aria-pressed="true"] { border-color: var(--text); color: var(--text); }
+
+.zone-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--art, none) center / cover no-repeat;
+  text-decoration: none;
+  isolation: isolate;
+}
+.zone-row::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--scrim); }
+.zone-row:hover::before { background: var(--scrim-hover); }
+.zone-row.on::before { background: var(--scrim-on); }
+.zone-row.on .name { text-decoration: underline; text-underline-offset: 3px; }
+.zone-row .ring { flex: 0 0 auto; }
+.zone-row .text { min-width: 0; }
+.zone-row .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zone-row.closed .name { color: var(--gold); }
+.zone-row .levels { font-size: 13px; color: var(--muted); }
+.zone-row .tally { margin-left: auto; font-size: 13px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- banners: art behind, words in front */
+
+.banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  min-height: 220px;
+  padding: 28px 32px;
+  background: var(--art, none) center / cover no-repeat;
+  border-bottom: 1px solid var(--line);
+  isolation: isolate;
+}
+.banner::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--scrim-banner); }
+.banner h1 { color: var(--gold); font-size: 30px; font-weight: 800; letter-spacing: -0.015em; }
+.banner .sub { margin-top: 4px; color: var(--text); }
+.banner .meta { margin-top: 2px; font-size: 13px; color: var(--muted); }
+.legend { margin: 14px 0 0; padding: 0; list-style: none; font-weight: 600; font-variant-numeric: tabular-nums; }
+.legend li { display: flex; align-items: center; gap: 8px; line-height: 1.9; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+.back { display: none; }
+
+.ring-track { fill: none; stroke-opacity: 0.22; }
+.ring-fill { fill: none; stroke-linecap: round; }
+.c-zone { stroke: var(--ember); background: var(--ember); }
+.c-group { stroke: var(--arcane); background: var(--arcane); }
+.c-total { stroke: var(--jade); background: var(--jade); }
+.c-gold { stroke: var(--gold); background: var(--gold); }
+
+/* ---------------------------------------------------------------- sections of a page */
+
+.section { padding: 24px 32px 0; }
+.section > h2 { font-size: 17px; font-weight: 700; display: flex; align-items: baseline; gap: 10px; }
+.section > h2 .muted { font-size: 14px; font-weight: 500; }
+.section > p { margin: 6px 0 0; max-width: 62ch; }
+.lead { max-width: 62ch; }
+
+/* ---------------------------------------------------------------- badges: the journal's own frames */
+
+.case { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 16px 8px; margin-top: 14px; }
+.fold { margin-top: 18px; border-top: 1px solid var(--line); }
+.fold summary { display: flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 600; cursor: pointer; list-style: none; }
+.fold summary::-webkit-details-marker { display: none; }
+.fold summary::before { content: ""; width: 7px; height: 7px; border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(-45deg); margin-right: 4px; }
+.fold[open] summary::before { transform: rotate(45deg); }
+.fold summary .muted { font-weight: 500; font-size: 14px; }
+.medal { display: flex; flex-direction: column; align-items: center; gap: 6px; text-decoration: none; text-align: center; }
+.medal .label { font-size: 13px; line-height: 1.3; color: var(--muted); }
+.medal.earned .label { color: var(--gold); }
+
+.badge { position: relative; width: var(--size, 72px); aspect-ratio: 1; flex: 0 0 auto; }
+.badge .art, .badge .rim { position: absolute; inset: 0; }
+.badge .art {
+  background: var(--art, none) center / auto var(--window, 74%) no-repeat;
+  -webkit-mask: var(--mask) center / 100% no-repeat;
+  mask: var(--mask) center / 100% no-repeat;
+}
+.badge.painting .art { background-size: var(--window, 74%) auto; }
+.badge.icon .art { background-size: 80% 80%; }
+.badge .rim { width: 100%; height: 100%; }
+.badge:not(.earned) .art { filter: grayscale(1) brightness(0.42); }
+.badge:not(.earned) .rim { filter: grayscale(1) brightness(0.6); }
+.badge .pct {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+  paint-order: stroke;
+  -webkit-text-stroke: 3px var(--bg);
+}
+.shape-medal { --mask: url(/art/badge-medal-mask.png); --window: 74%; }
+.shape-shield { --mask: url(/art/badge-shield-mask.png); --window: 76%; }
+.shape-crest { --mask: url(/art/badge-crest-mask.png); --window: 62%; }
+.shape-hex { --mask: url(/art/badge-hex-mask.png); --window: 76%; }
+
+/* ---------------------------------------------------------------- a zone's quests */
+
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 12px 24px; border-bottom: 1px solid var(--line); }
+.filters button {
+  height: 44px;
+  padding: 0 14px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+.filters button.on { color: var(--text); box-shadow: inset 0 -2px 0 var(--text); }
+.filters label { display: flex; align-items: center; gap: 8px; height: 44px; margin-left: auto; padding: 0 8px; color: var(--muted); cursor: pointer; }
+.filters input { width: 18px; height: 18px; accent-color: var(--text); }
+
+.heading { padding: 22px 32px 6px; font-weight: 700; display: flex; gap: 10px; align-items: baseline; }
+.heading .muted { font-weight: 500; font-size: 14px; }
+
+.quests { list-style: none; margin: 0; padding: 0; }
+.quest { border-top: 1px solid var(--line); }
+.quest:last-child { border-bottom: 1px solid var(--line); }
+.quest summary {
+  display: grid;
+  grid-template-columns: 22px 34px minmax(0, 1fr) auto;
+  column-gap: 10px;
+  align-items: baseline;
+  padding: 12px 32px;
+  cursor: pointer;
+  list-style: none;
+}
+.quest summary::-webkit-details-marker { display: none; }
+.quest summary:hover { background: var(--raised); }
+.mark { font-weight: 800; text-align: center; }
+.lvl { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.qname { font-weight: 600; }
+.qline { grid-column: 3 / 5; margin-top: 2px; font-size: 14px; color: var(--muted); }
+.giver { color: var(--muted); font-size: 13px; text-align: right; }
+/* a chain: its first quest's name, then its steps */
+.storyline { border-top: 1px solid var(--line); }
+.storyline-head { padding: 14px 32px 2px; font-weight: 700; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.storyline-head .muted { font-weight: 500; font-size: 13px; }
+.steps .quest { border-top: 0; }
+.steps .quest:last-child { border-bottom: 0; }
+.steps .quest summary { padding-top: 8px; padding-bottom: 8px; }
+.part { margin-right: 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.more { padding: 0 32px 14px 98px; font-size: 14px; color: var(--muted); }
+.more p { margin: 4px 0; }
+.st-done .mark, .st-skip .mark { color: var(--done); }
+.st-skip .mark { opacity: 0.6; }
+.st-active .mark, .st-available .mark { color: var(--gold); }
+.st-later .mark { color: var(--faint); }
+.st-locked .mark, .st-locked .qline { color: var(--locked); }
+.st-done .qname, .st-skip .qname { color: var(--muted); }
+.zone-tag { font-weight: 400; color: var(--muted); }
+
+/* ---------------------------------------------------------------- a quest's page: the game's parchment */
+
+.qhead { padding: 24px 32px 16px; border-bottom: 1px solid var(--line); }
+.crumb { font-size: 13px; color: var(--muted); }
+.crumb a { text-decoration: none; }
+.qhead h1 { margin-top: 4px; color: var(--gold); font-size: 32px; font-weight: 800; letter-spacing: -0.015em; }
+.qhead .sub { margin: 6px 0 0; }
+.qhead .state { margin: 6px 0 0; font-weight: 600; }
+.qhead .note { margin: 10px 0 0; color: var(--muted); font-size: 14px; max-width: 70ch; }
+.qhead .state.st-locked { color: var(--locked); }
+.qgrid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; padding: 24px 32px 0; align-items: start; }
+.paper {
+  padding: 14px 24px 8px 26px;
+  /* the quest window's own page: its torn edges keep their shape whatever the panel's size */
+  border-style: solid;
+  border-width: 22px 26px 40px 18px;
+  border-image: url(/art/parchment.webp) 11 13 20 9 fill / 22px 26px 40px 18px stretch;
+  color: var(--ink);
+  font: 400 17px/1.6 "Crimson Pro", Georgia, serif;
+  min-height: 380px;
+}
+.paper h2 { margin: 22px 0 8px; color: var(--ink-head); font: 700 22px/1.2 "Crimson Pro", Georgia, serif; }
+.paper h2:first-child { margin-top: 0; }
+.paper p { margin: 0 0 10px; max-width: 68ch; }
+.paper a { color: var(--ink-head); }
+.paper .needs, .paper .items { margin: 4px 0 12px; padding-left: 20px; }
+.paper .needs li { display: flex; gap: 12px; max-width: 420px; }
+.paper .needs b { margin-left: auto; font-family: Figtree, sans-serif; font-size: 15px; }
+.paper .items li { margin: 4px 0; }
+.paper .item { font-weight: 700; text-decoration: none; text-shadow: none; }
+.paper .item.q0 { color: var(--ink); opacity: 0.7; }
+.paper .item.q1 { color: var(--ink); }
+.paper details { margin-top: 14px; border-top: 1px solid var(--ink-line); padding-top: 10px; }
+.paper summary { cursor: pointer; font: 700 19px "Crimson Pro", Georgia, serif; color: var(--ink-head); min-height: 32px; }
+.paper .muted { color: var(--ink); opacity: 0.7; }
+.item.q2 { color: var(--q2); } .item.q3 { color: var(--q3); } .item.q4 { color: var(--q4); } .item.q5 { color: var(--q5); }
+/* rewards as the quest window shows them: icon, count in its corner, the name on the game's plate */
+.paper .rewards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 14px; margin: 6px 0 14px; padding: 0; list-style: none; }
+.reward { display: flex; align-items: center; height: 42px; text-decoration: none; }
+.reward .slot { position: relative; z-index: 1; flex: 0 0 auto; width: 40px; height: 40px; border-radius: 3px; overflow: hidden; background: var(--bg); }
+.reward .slot img { display: block; width: 100%; height: 100%; }
+.reward .count { position: absolute; right: 3px; bottom: 1px; font: 700 13px Figtree, sans-serif; color: var(--text); -webkit-text-stroke: 3px var(--bg); paint-order: stroke; }
+.reward .plate {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  height: 38px;
+  margin-left: -4px;
+  padding: 0 10px 0 13px;
+  background: url(/art/reward-plate.png) center / 100% 100% no-repeat;
+  color: var(--text);
+  font: 600 14px/1.15 Figtree, sans-serif;
+}
+.reward:hover .plate { color: var(--gold); }
+.qside { display: flex; flex-direction: column; gap: 16px; }
+.mapbutton { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+dialog .mapbutton { cursor: zoom-out; }
+.qmap { position: relative; line-height: 0; }
+.qmap img { width: 100%; height: auto; border-radius: 4px; }
+.qmap.big { width: min(92vw, 1200px); }
+dialog { padding: 0; border: 0; background: none; max-width: none; }
+dialog::backdrop { background: var(--scrim-banner); }
+.pin { position: absolute; transform: translate(-50%, -50%); line-height: 1; font-weight: 900; }
+.pin.spot { width: 7px; height: 7px; border-radius: 50%; background: var(--pin-spot); box-shadow: 0 0 0 1px var(--bg); }
+.pin.start, .pin.end { color: var(--gold); font-size: 20px; -webkit-text-stroke: 2px var(--bg); paint-order: stroke; }
+.big .pin.spot { width: 10px; height: 10px; }
+.big .pin.start, .big .pin.end { font-size: 30px; }
+.legend-line { margin: -6px 0 0; font-size: 13px; color: var(--muted); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.pin-key { font-weight: 900; color: var(--gold); }
+.pin-key.spot { width: 8px; height: 8px; border-radius: 50%; background: var(--pin-spot); display: inline-block; }
+.facts { margin: 0; border-top: 1px solid var(--line); }
+.fact { display: grid; grid-template-columns: 96px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.fact dt { color: var(--muted); font-size: 14px; }
+.fact dd { margin: 0; }
+.side-head { font-size: 16px; font-weight: 700; margin-top: 4px; display: flex; gap: 8px; align-items: baseline; }
+.side-head .muted { font-size: 13px; font-weight: 500; }
+.chain { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.chain li { display: grid; grid-template-columns: 26px 18px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line); counter-increment: step; }
+.chain li::before { content: counter(step); color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.chain li.here b { color: var(--gold); }
+
+/* ---------------------------------------------------------------- forms and the phone link */
+
+.form { padding: 24px 32px 0; max-width: 760px; }
+.form ol { padding-left: 20px; color: var(--muted); }
+textarea {
+  display: block;
+  width: 100%;
+  min-height: 140px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
+  font: 14px/1.45 ui-monospace, Consolas, monospace;
+  resize: vertical;
+}
+@supports (-webkit-touch-callout: none) { textarea { font-size: 16px; } } /* iOS zooms into smaller text */
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.button {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--text);
+  border-radius: var(--radius);
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+.button.quiet { background: none; color: var(--text); border-color: var(--line); }
+.button:disabled { opacity: 0.5; cursor: default; }
+.say { min-height: 24px; margin-top: 10px; }
+.bad { color: var(--locked); }
+.ok { color: var(--done); }
+.link { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; margin-top: 14px; }
+.qr { background: var(--paper); padding: 8px; border-radius: var(--radius); line-height: 0; }
+.qr svg { width: 148px; height: 148px; }
+.url { font-family: ui-monospace, Consolas, monospace; word-break: break-all; }
+.trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+code { font-family: ui-monospace, Consolas, monospace; font-size: 0.92em; }
+
+.foot { padding: 28px 16px; border-top: 1px solid var(--line); color: var(--faint); font-size: 13px; text-align: center; }
+
+/* ---------------------------------------------------------------- phones: one column, the list under the page */
+
+@media (max-width: 900px) {
+  .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "find" "page" "side"; }
+  #find { border-right: 0; }
+  #side { position: static; height: auto; border-right: 0; }
+  body.at-zone #side { display: none; }
+  .banner { gap: 16px; min-height: 0; padding: 20px 16px; }
+  .banner .ring { width: 92px; height: 92px; }
+  .banner h1 { font-size: 24px; }
+  .back { display: flex; align-items: center; height: 44px; padding: 0 16px; border-bottom: 1px solid var(--line); text-decoration: none; color: var(--muted); font-weight: 600; }
+  .section, .form { padding: 20px 16px 0; }
+  .heading { padding: 18px 16px 6px; }
+  .storyline-head { padding: 12px 16px 2px; }
+  .filters { padding: 8px 8px; }
+  .quest summary { grid-template-columns: 22px 30px minmax(0, 1fr); padding: 12px 16px; }
+  .giver { display: none; }
+  .qline { grid-column: 3 / 4; }
+  .more { padding: 0 16px 14px 78px; }
+  .case { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+  .qhead { padding: 16px; }
+  .crumb { display: none; } /* the back link above says it */
+  .qhead h1 { font-size: 25px; }
+  .qgrid { grid-template-columns: minmax(0, 1fr); padding: 16px 12px 0; }
+  .paper { padding: 8px 6px 4px 10px; font-size: 16px; }
+  .bar { gap: 12px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .zone-row::before, .quest summary { transition: background-color 120ms ease; }
+}

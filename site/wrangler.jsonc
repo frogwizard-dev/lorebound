@@ -1,0 +1,14 @@
+{
+  // Cloudflare Pages project for lb.frogwizard.net: a static page (public/) and one function
+  // (functions/api/report.js). The GitHub token is a secret set in the Pages project, not here.
+  "name": "loremaster-report",
+  "pages_build_output_dir": "public",
+  "compatibility_date": "2026-11-01",
+  "vars": {
+    "REPORT_REPO": "frogwizard-dev/loremaster-reports"
+  },
+  // The rate limit's table: schema.sql.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "loremaster-report", "database_id": "1762a780-83b2-464f-85fc-9ea8d4df3abd" }
+  ]
+}

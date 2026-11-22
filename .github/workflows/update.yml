@@ -1,0 +1,94 @@
+# The quest list's weekly update, on GitHub's machines (no game needed: the game's tables and art come from
+# wago.tools's copy of Forever's newest build). Takes players' reports from the loremaster-reports issues, builds
+# the quest list and quest pages, checks new quests against Wowhead, makes any new site art, and when anything
+# changed: bumps the patch version, notes it in CHANGELOG.md, commits, tags, releases (release.yml) and deploys
+# the site. Also runs on demand (Actions > Update the quest list > Run workflow).
+#
+# Secrets: CF_API_KEY (CurseForge, for the release), CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (the site),
+# and REPORTS_TOKEN (optional: a token that can close issues in frogwizard-dev/loremaster-reports; without it the
+# reports are still read, and closed by hand).
+name: Update the quest list
+
+on:
+  schedule:
+    - cron: "0 5 * * 1" # Mondays, 05:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    env:
+      LOREBOUND_NO_CLIENT: "1"
+      GH_TOKEN: ${{ secrets.REPORTS_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install lupa pillow numpy
+      # wago.tools's game files and CMaNGOS's database, kept between runs.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            tools/lore_sources/files
+            tools/lore_sources/classicdb.sql.gz
+          key: lore-sources-${{ github.run_id }}
+          restore-keys: lore-sources-
+      - name: CMaNGOS's classic-db (quest text and rewards)
+        run: |
+          [ -f tools/lore_sources/classicdb.sql.gz ] || curl -sfL -o tools/lore_sources/classicdb.sql.gz \
+            https://raw.githubusercontent.com/cmangos/classic-db/master/Full_DB/ClassicDB_1_12_1_z2815.sql.gz
+      - name: Questie's quest blacklist, fresh from its repository
+        run: curl -sfL -o sources/Questie/QuestieQuestBlacklist.lua https://raw.githubusercontent.com/Questie/Questie/master/Database/Corrections/QuestieQuestBlacklist.lua
+      - name: Quest list (with players' reports)
+        working-directory: tools
+        run: python make_lore.py --pull ${{ secrets.REPORTS_TOKEN && '--close' || '' }}
+      - name: Forever's objectives from Wowhead (new quests only)
+        working-directory: tools
+        run: python lore_wowhead.py
+      - name: Quest list and quest pages again, with Wowhead's text in
+        working-directory: tools
+        run: python make_lore.py
+      - name: Site art (only what's new)
+        working-directory: tools
+        run: python make_lore_site_art.py
+      - name: New version, if anything changed
+        id: version
+        run: python tools/bump_version.py
+      - name: Commit and tag
+        if: steps.version.outputs.tag != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Quest list update ${{ steps.version.outputs.tag }}"
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin HEAD:main "${{ steps.version.outputs.tag }}"
+      - uses: actions/setup-node@v4
+        if: steps.version.outputs.tag != ''
+        with:
+          node-version: "22"
+      - name: Deploy the site
+        if: steps.version.outputs.tag != ''
+        working-directory: site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm ci
+          npx wrangler pages deploy --branch main
+
+  release:
+    needs: update
+    if: needs.update.outputs.tag != ''
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.update.outputs.tag }}
+    secrets: inherit

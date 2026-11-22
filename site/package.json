@@ -1,0 +1,11 @@
+{
+  "name": "loremaster-report",
+  "private": true,
+  "description": "lm.frogwizard.net: Loremaster's quest report page and its Cloudflare Pages function",
+  "scripts": {
+    "deploy": "wrangler pages deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.166.0"
+  }
+}

@@ -1,0 +1,83 @@
+"""Forever's game files by file ID or path, for Lorebound's tools: the local client's when it's installed (and the
+file isn't held encrypted), else wago.tools's copy of the newest Forever build. So the tools run the same on this
+PC and on GitHub's machines, which have no game. wago.tools's copies are cached in lore_sources/files/<build>/.
+
+    from game_files import GameFiles
+    files = GameFiles()
+    raw = files.read_fdid(1139443)             # QuestV2.db2
+    raw = files.read_name("interface/icons/inv_misc_book_09.blp")
+"""
+import json
+import os
+import urllib.request
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+CACHE = os.path.join(HERE, "lore_sources", "files")
+LISTFILES = (os.path.join(HERE, "listfile", "community-listfile.csv"),  # the whole community listfile, on this PC
+             os.path.join(HERE, "listfile-lorebound.csv"))             # the parts the tools use, kept in the repo
+AGENT = {"User-Agent": "Mozilla/5.0 (compatible; loremaster-data)"}
+BUILDS = "https://wago.tools/api/builds"
+FILE = "https://wago.tools/api/casc/%d?download&version=%s"
+
+
+class GameFiles:
+    def __init__(self, local=True):
+        self.casc = None
+        if local and not os.environ.get("LOREBOUND_NO_CLIENT"):
+            try:
+                from casc import Casc
+                self.casc = Casc()
+            except Exception:  # no game here (GitHub), or no casc.py: wago.tools only
+                self.casc = None
+        self._build = None
+        self._paths = None
+
+    def build(self):
+        """The newest Forever build wago.tools has (its files are that build's)."""
+        if self._build is None:
+            with urllib.request.urlopen(urllib.request.Request(BUILDS, headers=AGENT), timeout=60) as res:
+                self._build = json.load(res)["wowf"][0]["version"]
+        return self._build
+
+    def read_fdid(self, fid):
+        raw = self.casc.read_fdid(fid) if self.casc else None
+        if raw and raw[:4] != b"\0\0\0\0":  # unreleased content is held encrypted: zeros
+            return raw
+        return self.wago(fid)
+
+    def wago(self, fid):
+        path = os.path.join(CACHE, self.build(), "%d" % fid)
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            try:
+                with urllib.request.urlopen(urllib.request.Request(FILE % (fid, self.build()), headers=AGENT), timeout=120) as res:
+                    raw = res.read()
+            except urllib.error.HTTPError as error:
+                if error.code == 404:
+                    return None
+                raise
+            with open(path, "wb") as f:
+                f.write(raw)
+        return open(path, "rb").read()
+
+    def read_name(self, name):
+        if self.casc:
+            raw = self.casc.read_name(name)
+            if raw and raw[:4] != b"\0\0\0\0":
+                return raw
+        fid = self.paths().get(name.lower())
+        return self.read_fdid(fid) if fid else None
+
+    def paths(self):
+        """{ path: file ID } from the listfile (the whole one when it's here, else the repo's part of it)."""
+        if self._paths is None:
+            self._paths = {}
+            for listfile in LISTFILES:
+                if os.path.exists(listfile):
+                    with open(listfile, encoding="utf-8") as f:
+                        for line in f:
+                            fid, _, path = line.strip().partition(";")
+                            if fid.isdigit():
+                                self._paths[path.lower()] = int(fid)
+                    break
+        return self._paths

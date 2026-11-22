@@ -1,0 +1,5 @@
+<Bindings>
+	<Binding name="LOREBOUND_TOGGLE" header="LOREBOUND" category="ADDONS">
+		Lorebound_Toggle()
+	</Binding>
+</Bindings>
