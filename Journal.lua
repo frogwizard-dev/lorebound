@@ -25,7 +25,8 @@ local MIN_W, MIN_H, MAX_W, MAX_H = 820, 560, 2000, 1400 -- the window's size, by
 local MIN_SCALE, MAX_SCALE, SCALE_STEP = 0.6, 1.8, 0.1   -- its scale, by the grip with Shift or the settings
 local HEADER_H = 236
 local NAV_ZONE_H, NAV_GROUP_H = 30, 26
-local QUEST_H, SECTION_H, CHAIN_H = 44, 28, 24
+local QUEST_H, SECTION_H, CHAIN_H = 44, 28, 30
+local MAX_DOTS = 16 -- a chain heading's dots, one a step
 local WALL_ROW_H, WALL_HEAD_H, MEDAL_W = 104, 30, 110
 local TITLE_FONT = _G.Game30Font and "Game30Font" or "GameFontNormalHuge"
 
@@ -512,6 +513,36 @@ local function QuestPageClick(button)
     ns.QuestPage.Show(button:GetParent().data.id)
 end
 
+-- A piece of the line joining a chain's steps: nil hides it, "done" is the green of a finished step.
+local function Rail(texture, kind)
+    texture:SetShown(kind ~= nil)
+    if kind == "done" then
+        texture:SetColorTexture(0.27, 0.5, 0.33, 0.9)
+    elseif kind then
+        texture:SetColorTexture(0.32, 0.31, 0.36, 0.9)
+    end
+end
+
+-- A chain heading's dot for one step: filled when done or in your log, a ring when it's still to come.
+local DOT_COLORS = {
+    [Lore.DONE] = { 0.44, 0.82, 0.55, true }, [Lore.ACTIVE] = { 1, 0.82, 0.25, true },
+    [Lore.AVAILABLE] = { 1, 0.82, 0.25, false }, [Lore.LATER] = { 0.5, 0.48, 0.45, false },
+    [Lore.LOCKED] = { 0.85, 0.45, 0.45, false }, [Lore.HIDDEN] = { 0.3, 0.29, 0.28, false },
+}
+local function ChainDot(row, i, state, passed)
+    local dot = row.dots[i]
+    if not dot then
+        dot = row:CreateTexture(nil, "OVERLAY")
+        dot:SetSize(9, 9)
+        if i == 1 then dot:SetPoint("LEFT", row.head, "RIGHT", 10, 0) else dot:SetPoint("LEFT", row.dots[i - 1], "RIGHT", 4, 0) end
+        row.dots[i] = dot
+    end
+    local color = DOT_COLORS[state] or DOT_COLORS[Lore.HIDDEN]
+    dot:SetTexture(MEDIA .. (color[4] and "Dot" or "Ring3s"))
+    dot:SetVertexColor(color[1], color[2], color[3], passed and 0.55 or 1)
+    dot:Show()
+end
+
 local function InitQuestRow(row, data)
     if not row.built then
         row.built = true
@@ -563,18 +594,39 @@ local function InitQuestRow(row, data)
         row.back:SetAllPoints()
         row.back:SetColorTexture(1, 1, 1, 0.04)
         row.parts = { row.icon, row.level, row.name, row.where, row.line }
+        -- A chain's steps: a line through their icons, from the step before and on to the next.
+        row.railTop = row:CreateTexture(nil, "BORDER")
+        row.railTop:SetPoint("TOPLEFT", row, "TOPLEFT", 17, 0)
+        row.railTop:SetPoint("BOTTOMRIGHT", row.icon, "TOPLEFT", 9, 1)
+        row.railBottom = row:CreateTexture(nil, "BORDER")
+        row.railBottom:SetPoint("TOPLEFT", row.icon, "BOTTOMLEFT", 7, -1)
+        row.railBottom:SetPoint("BOTTOMRIGHT", row, "BOTTOMLEFT", 19, 0)
+        row.progress = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        row.progress:SetPoint("RIGHT", -10, -2)
+        row.dots = {}
         row:SetScript("OnClick", QuestRowClick)
     end
     row.data = data
-    local isHead = data.section ~= nil or data.chain ~= nil
+    local isHead = data.section ~= nil or data.chainHead ~= nil
     row.head:SetShown(isHead)
     row.rule:SetShown(data.section ~= nil)
     for _, part in ipairs(row.parts) do part:SetShown(not isHead) end
     row:EnableMouse(not isHead)
-    if data.chain then -- a chain's heading: its first quest's name, then its steps below
+    row.progress:SetShown(data.chainHead ~= nil)
+    for _, dot in ipairs(row.dots) do dot:Hide() end
+    Rail(row.railTop, data.railTop)
+    Rail(row.railBottom, data.railBottom)
+    if data.chainHead then -- a chain's heading: its name, a dot for each step, how many are done
         row.head:SetFontObject("GameFontHighlight")
-        row.head:SetText(("%s  |cff9a9a9aa chain of %d quests%s|r"):format(data.label, data.of,
-            data.here < data.of and (", %d here"):format(data.here) or ""))
+        row.head:SetText(data.label)
+        local steps = Lore.ChainSteps(data.chainHead)
+        local done = 0
+        for i, id in ipairs(steps) do
+            local state = Lore.StatusOf(id)
+            if state == Lore.DONE then done = done + 1 end
+            if i <= MAX_DOTS then ChainDot(row, i, state, Lore.IsPassed(id)) end
+        end
+        row.progress:SetText(("%d of %d done"):format(done, #steps))
         row.body:Hide()
         row.giver:Hide()
         row.page:Hide()
@@ -598,7 +650,8 @@ local function InitQuestRow(row, data)
     if passed then row.icon:SetAlpha(0.55) end
     local level = quest[F.level]
     row.level:SetText(level and level > 0 and ("[%d]"):format(level) or "")
-    row.name:SetText((data.step and ("|cff9a9a9aPart %d|r  "):format(data.step) or "") .. (quest[F.name] or ("Quest " .. id)))
+    local part = data.step and (data.of and ("Part %d of %d"):format(data.step, data.of) or ("Part %d"):format(data.step))
+    row.name:SetText((part and ("|cff9a9a9a%s|r  "):format(part) or "") .. (quest[F.name] or ("Quest " .. id)))
     row.name:SetTextColor(QuestColor(id, state))
     if data.showZone then
         row.where:SetText((Lore.Zone(quest[F.zone])))
@@ -637,31 +690,76 @@ local function SortQuests(list)
     return list
 end
 
--- A section's quests, each chain's steps gathered under a heading at its first one (two or more of them here).
-local function InsertQuests(provider, list)
-    local members = {}
-    for _, id in ipairs(list) do
+-- A zone's chains with two or more steps listed here, each placed once: in the section of its first step not done
+-- (a filter that hides that section: the first shown one any of its steps is in), drawn as its heading and then
+-- every step listed here in order, joined by a line. Returns { [section state] = { block, ... } } and the quests
+-- the blocks hold.
+local function ChainBlocks(listed, wanted)
+    local byChain, order = {}, {}
+    for _, id in ipairs(listed) do
         local chain = Lore.Row(id)[F.chain]
         if chain then
-            members[chain[1]] = members[chain[1]] or {}
-            table.insert(members[chain[1]], id)
-        end
-    end
-    local placed = {}
-    for _, id in ipairs(list) do
-        local chain = Lore.Row(id)[F.chain]
-        local steps = chain and members[chain[1]]
-        if steps and #steps > 1 then
-            if not placed[chain[1]] then
-                placed[chain[1]] = true
-                table.sort(steps, function(a, b) return Lore.Row(a)[F.chain][2] < Lore.Row(b)[F.chain][2] end)
-                provider:Insert({ chain = chain[1], label = Lore.Row(steps[1])[F.name] or "", of = chain[3], here = #steps })
-                for _, step in ipairs(steps) do provider:Insert({ id = step, step = Lore.Row(step)[F.chain][2] }) end
+            if not byChain[chain[1]] then
+                byChain[chain[1]] = {}
+                order[#order + 1] = chain[1]
             end
-        else
-            provider:Insert({ id = id })
+            table.insert(byChain[chain[1]], id)
         end
     end
+    local placed, held = {}, {}
+    for _, first in ipairs(order) do
+        local steps = byChain[first]
+        if #steps > 1 then
+            table.sort(steps, function(a, b) return Lore.Row(a)[F.chain][2] < Lore.Row(b)[F.chain][2] end)
+            local at = Lore.DONE
+            for _, id in ipairs(steps) do
+                local state = Lore.StatusOf(id)
+                if state ~= Lore.DONE then
+                    at = state
+                    break
+                end
+            end
+            if not wanted(at) then
+                at = nil
+                for _, section in ipairs(SECTIONS) do
+                    for _, id in ipairs(steps) do
+                        if not at and wanted(section[1]) and Lore.StatusOf(id) == section[1] then at = section[1] end
+                    end
+                end
+            end
+            if at then
+                placed[at] = placed[at] or {}
+                table.insert(placed[at], { first = first, steps = steps })
+                for _, id in ipairs(steps) do held[id] = true end
+            end
+        end
+    end
+    return placed, held
+end
+
+local function InsertBlock(provider, block)
+    local first, steps = block.first, block.steps
+    provider:Insert({ chainHead = first, label = Lore.Row(first) and Lore.Row(first)[F.name] or Lore.Row(steps[1])[F.name] or "" })
+    for i, id in ipairs(steps) do
+        local before = steps[i - 1]
+        provider:Insert({ id = id, step = Lore.Row(id)[F.chain][2],
+            railTop = before and (Lore.StatusOf(before) == Lore.DONE and "done" or "open") or nil,
+            railBottom = steps[i + 1] and (Lore.StatusOf(id) == Lore.DONE and "done" or "open") or nil })
+    end
+end
+
+-- Where a section's entries go: chains by the level of the step you're on, quests by their own.
+local function EntryLevel(entry)
+    local id = entry.block and entry.block.steps[1] or entry.id
+    if entry.block then
+        for _, step in ipairs(entry.block.steps) do
+            if Lore.StatusOf(step) ~= Lore.DONE then
+                id = step
+                break
+            end
+        end
+    end
+    return Lore.Row(id)[F.level] or 0, id
 end
 
 -- The list for the page shown: a zone's quests in sections, or the search's results.
@@ -679,13 +777,40 @@ function Journal:FillQuests(keepScroll)
             end
         end
         local shown = SHOWN_BY_FILTER[ns.db.filter] or SHOWN_BY_FILTER.todo
+        local function Wanted(state) return shown[state] or (state == Lore.LOCKED and ns.db.showLocked) or false end
+        -- Chains: every step that isn't hidden (locked-out ones only when they're asked for).
+        local listed = {}
+        for _, section in ipairs(SECTIONS) do
+            if section[1] ~= Lore.LOCKED or ns.db.showLocked then
+                for _, id in ipairs(byStatus[section[1]] or {}) do listed[#listed + 1] = id end
+            end
+        end
+        local blocks, held = ChainBlocks(listed, Wanted)
         for _, section in ipairs(SECTIONS) do
             local state, label = section[1], section[2]
-            local list = byStatus[state]
-            local wanted = shown[state] or (state == Lore.LOCKED and ns.db.showLocked)
-            if list and wanted then
-                provider:Insert({ section = state, label = label, count = #list })
-                InsertQuests(provider, SortQuests(list))
+            if Wanted(state) then
+                local entries = {}
+                for _, block in ipairs(blocks[state] or {}) do entries[#entries + 1] = { block = block } end
+                for _, id in ipairs(byStatus[state] or {}) do
+                    if not held[id] then entries[#entries + 1] = { id = id } end
+                end
+                if #entries > 0 then
+                    table.sort(entries, function(a, b)
+                        local la, ia = EntryLevel(a)
+                        local lb, ib = EntryLevel(b)
+                        if la ~= lb then return la < lb end
+                        return ia < ib
+                    end)
+                    provider:Insert({ section = state, label = label, count = #(byStatus[state] or {}) })
+                    for _, entry in ipairs(entries) do
+                        if entry.block then
+                            InsertBlock(provider, entry.block)
+                        else
+                            local chain = Lore.Row(entry.id)[F.chain]
+                            provider:Insert({ id = entry.id, step = chain and chain[2], of = chain and chain[3] })
+                        end
+                    end
+                end
             end
         end
         if provider:GetSize() == 0 then
@@ -1732,7 +1857,7 @@ local function Build()
     questList:SetPoint("BOTTOMRIGHT", -22, 6)
     questView:SetElementExtentCalculator(function(_, data)
         if data.section then return SECTION_H end
-        if data.chain then return CHAIN_H end
+        if data.chainHead then return CHAIN_H end
         if expanded[data.id] then return ExpandedHeight(data.id) end
         return QUEST_H
     end)

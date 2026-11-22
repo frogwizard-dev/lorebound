@@ -217,17 +217,6 @@ local function Place(map, x, y)
     return ("\n|cff9a9a9a%s %s, %s|r"):format(info and info.name or "", x or "?", y or "?")
 end
 
--- A chain's quests (by its first quest), in step order.
-local function ChainSteps(first)
-    local steps = {}
-    for _, other in ipairs(Lore.ListIds()) do
-        local chain = Lore.Row(other)[F.chain]
-        if chain and chain[1] == first then steps[#steps + 1] = other end
-    end
-    table.sort(steps, function(a, b) return Lore.Row(a)[F.chain][2] < Lore.Row(b)[F.chain][2] end)
-    return steps
-end
-
 local function ChainRow(i)
     local row = pool.chain[i]
     if not row then
@@ -268,7 +257,7 @@ local function Side(id)
     local chain = row[F.chain]
     view.chainHead:SetShown(chain ~= nil)
     if not chain then return end
-    local steps = ChainSteps(chain[1])
+    local steps = Lore.ChainSteps(chain[1])
     view.chainHead:SetText(("Quest chain  |cff9a9a9a%d quests|r"):format(#steps))
     -- As many rows as fit the column under the facts, around the quest shown.
     local room = view.side:GetHeight() - view.facts:GetStringHeight() - 14 - 22 - 18 - 18 - 36
@@ -410,7 +399,7 @@ end
 function QuestPage.Step(direction)
     local chain = current and Lore.Row(current)[F.chain]
     if not chain then return end
-    local steps = ChainSteps(chain[1])
+    local steps = Lore.ChainSteps(chain[1])
     local from, to = 1, #steps
     if direction < 0 then from, to = #steps, 1 end
     for i = from, to, direction < 0 and -1 or 1 do

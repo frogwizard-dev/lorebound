@@ -144,8 +144,8 @@ the functions), .github/workflows.
 - Before calling the build "unchanged", build the old tools too, from a copy, on the same day's inputs: the
   committed outputs can lag the tools (nine site paintings did).
 
-### Waits on Mike
+### Settled by Mike (2026-11-22)
 
-- The celebration's exclamation marks: the journal's "Complete!", the toasts' "<zone> complete!" and "Lorebound!".
-- The continent ring's purple (`--arcane` on the site, the addon's group ring colour).
-- `site/functions/_middleware.js` is deleted in the working copy (lm.frogwizard.net is gone), not staged.
+- The celebration's exclamation marks ("Complete!", "<zone> complete!", "Lorebound!"): kept. Don't flag them again.
+- The continent ring's purple (`--arcane`, the addon's group ring): kept. Don't flag it again.
+- `site/functions/_middleware.js`: removed for good (lm.frogwizard.net is gone).

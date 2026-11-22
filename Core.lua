@@ -40,12 +40,14 @@ local CHAR_DEFAULTS = {
     turned = {},         -- [questID] = when it was turned in (since Lorebound was installed)
 }
 
+-- Fills in what saved variables lack, and puts back a default where a saved value is of the wrong kind (a
+-- damaged or hand-edited file).
 local function CopyDefaults(defaults, saved)
     for key, value in pairs(defaults) do
         if type(value) == "table" then
             if type(saved[key]) ~= "table" then saved[key] = {} end
             CopyDefaults(value, saved[key])
-        elseif saved[key] == nil then
+        elseif type(saved[key]) ~= type(value) then
             saved[key] = value
         end
     end
@@ -336,6 +338,7 @@ local function Accepted(questID)
 end
 
 local function TurnedIn(questID)
+    if type(questID) ~= "number" or questID <= 0 then return end
     lastTurnIn = { quest = questID, giver = completing and completing.quest == questID and completing.giver or nil,
         at = GetTime() }
     ns.charDB.turned[questID] = time()

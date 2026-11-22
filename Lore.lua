@@ -169,7 +169,9 @@ function Lore.Init(data)
     MarkVersions()
     local learned = ns.db.learned
     for id, entry in pairs(learned) do
-        if quests[id] or skip[id] then
+        if type(entry) ~= "table" or type(entry[1]) ~= "string" or type(entry[2]) ~= "string" then
+            learned[id] = nil -- damaged: a learned quest needs its name and zone
+        elseif quests[id] or skip[id] then
             learned[id] = nil -- met before the list was loaded, and the list has it (or leaves it out)
             ns.db.shared[id] = nil
         else
@@ -701,6 +703,27 @@ end
 function Lore.IsPassed(id)
     Status(id)
     return passed[id] == true
+end
+
+local chainSteps -- [first quest] = its chain's quests in step order, made the first time it's asked
+
+-- A chain's quests (by its first quest, the row's chain field), in step order, whatever their zones.
+function Lore.ChainSteps(first)
+    if not chainSteps then
+        chainSteps = {}
+        for id, row in pairs(quests) do
+            local chain = row[F.chain]
+            if chain then
+                local list = chainSteps[chain[1]] or {}
+                chainSteps[chain[1]] = list
+                list[#list + 1] = id
+            end
+        end
+        for _, list in pairs(chainSteps) do
+            table.sort(list, function(a, b) return quests[a][F.chain][2] < quests[b][F.chain][2] end)
+        end
+    end
+    return chainSteps[first] or EMPTY
 end
 
 -- Whether the list lacks this quest's Forever text (changed or new in Forever, or learned in game).

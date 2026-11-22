@@ -1,5 +1,15 @@
 # Lorebound
 
+## 0.3.0
+
+- **Quest chains as storylines**: a zone's chain now shows once, in the section of the step you're on, under a
+  heading with its name, a dot for every step and how many are done. Below it every step of the chain in this zone,
+  in order, joined by a line (green past the steps you've finished). A single step of a chain shows "Part 3 of 6".
+  The Done filter still shows a chain you've started, in full.
+- **Fix**: a saved setting of the wrong kind (a damaged or hand-edited saved variables file) could stop the journal
+  opening; it now falls back to the default. A quest you'd met that was saved without its name or zone is dropped
+  instead of stopping the journal loading.
+
 ## 0.2.0
 
 - **Your race's class quests only**: where a class quest comes in one version per race (Call of Earth in Durotar,
