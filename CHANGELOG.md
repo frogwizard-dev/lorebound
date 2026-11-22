@@ -1,5 +1,16 @@
 # Lorebound
 
+## 0.3.1
+
+- **A toast you notice**: it slides down into place as it fades in, waits a beat, then its ring ticks up more
+  slowly with the percentage counting, a soft pulse and a band of light across it when it lands. The +1 is bigger
+  and gold. It stays 6 seconds, fades out gently, and holds while the mouse is over it.
+- **Closing a ring is an event**: a bigger banner shows only the zone's name while its ring sweeps all the way round
+  from empty, gathering speed. At the close the banner jolts, its border flashes gold, a halo and a flash burst,
+  sparks fly, a gold starburst opens and turns behind the badge as it springs out, and the title becomes
+  "... complete!" with the details following. It stays 10 seconds.
+- **Fix**: the settings' Test fanfare showed the badge greyed out, as not earned yet; it now shows it as you'd earn it.
+
 ## 0.3.0
 
 - **Quest chains as storylines**: a zone's chain now shows once, in the section of the step you're on, under a

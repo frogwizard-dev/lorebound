@@ -28,9 +28,16 @@ local Ring = {}
 
 local function Animate(self, elapsed)
     self.spent = self.spent + elapsed
-    local progress = math.min(1, self.spent / DURATION)
-    local eased = 1 - (1 - progress) ^ 3
-    self:Draw(self.from + (self.to - self.from) * eased)
+    local progress = math.min(1, self.spent / self.duration)
+    local eased
+    if self.build then -- slow, then faster into the close, then easing off: a ring sweeping shut
+        eased = progress < 0.5 and 4 * progress ^ 3 or 1 - (2 - 2 * progress) ^ 3 / 2
+    else
+        eased = 1 - (1 - progress) ^ 3
+    end
+    local share = self.from + (self.to - self.from) * eased
+    self:Draw(share)
+    if self.counting then self.label:SetText(("%d%%"):format(math.floor(share * 100))) end
     if progress >= 1 then
         self:SetScript("OnUpdate", nil)
         local done = self.onDone
@@ -39,9 +46,12 @@ local function Animate(self, elapsed)
     end
 end
 
--- Shows the share (0 to 1). Animated from where it is when asked; onDone runs when it gets there.
-function Ring:SetProgress(share, animate, onDone)
+-- Shows the share (0 to 1). Animated from where it is when asked; onDone runs when it gets there. how (optional):
+-- duration (seconds), build (slow start, fast close), count (the label shows the share as it moves).
+function Ring:SetProgress(share, animate, onDone, how)
     share = math.max(0, math.min(1, share or 0))
+    how = how or {}
+    self.duration, self.build, self.counting = how.duration or DURATION, how.build, how.count
     if animate and self:IsVisible() and math.abs(share - (self.shown or 0)) > 0.0005 then
         self.from, self.to, self.spent, self.onDone = self.shown or 0, share, 0, onDone
         self:SetScript("OnUpdate", Animate)

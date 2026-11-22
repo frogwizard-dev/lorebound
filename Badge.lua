@@ -312,8 +312,9 @@ local function Paint(badge, earned)
     badge.glow:SetShown(earned and true or false)
 end
 
--- kind: "zone" (value = zone), "group" (value = 1 or 2: a continent's crest) or "seal".
-function Widget:Set(kind, value)
+-- kind: "zone" (value = zone), "group" (value = 1 or 2: a continent's crest) or "seal". asEarned: drawn earned
+-- whatever the record says (the toast's closing moment, which a settings test only pretends).
+function Widget:Set(kind, value, asEarned)
     local size = self:GetWidth()
     local shape, uiMap, icon, journal = "Crest", nil, nil, nil
     if kind == "zone" then
@@ -341,7 +342,7 @@ function Widget:Set(kind, value)
         ns.DrawArt(self.window, uiMap, inner, inner, true, journal)
     end
     local closed, done, total = Closed(kind, value)
-    local earned = closed or Badge.Earned(kind, value) ~= nil
+    local earned = asEarned or closed or Badge.Earned(kind, value) ~= nil
     Paint(self, earned)
     self.earned = earned
     self.label:SetText(earned and "" or ("%d%%"):format(total > 0 and math.floor(done / total * 100) or 0))
