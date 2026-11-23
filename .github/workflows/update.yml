@@ -35,8 +35,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install lupa pillow numpy
-      # wago.tools's game files and CMaNGOS's database, kept between runs.
-      - uses: actions/cache@v4
+      # wago.tools's game files and CMaNGOS's database, kept between runs (saved below even when a run fails, so the
+      # next one doesn't fetch everything again and trip wago.tools's rate limit).
+      - uses: actions/cache/restore@v4
         with:
           path: |
             tools/lore_sources/files
@@ -61,6 +62,13 @@ jobs:
       - name: Site art (only what's new)
         working-directory: tools
         run: python make_lore_site_art.py
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            tools/lore_sources/files
+            tools/lore_sources/classicdb.sql.gz
+          key: lore-sources-${{ github.run_id }}
       - name: New version, if anything changed
         id: version
         run: python tools/bump_version.py

@@ -1,5 +1,13 @@
 # Lorebound
 
+## 0.3.3
+
+- **Fix**: finishing your own race's class quest could bring another race's version of it back. The game marks the
+  other quest of an either-or pair done too (a Tauren who finishes Kranal Fiss's Call of Fire has the Skyborne's
+  Sessaria Skystride quest marked done), and Lorebound took that as you choosing that version, showing its later
+  steps as still to do. Now only a later step of that version, done or in your log, says you took it; otherwise the
+  whole version stays out of your lists and counts.
+
 ## 0.3.2
 
 - **Whole chains, wherever they start**: a zone's or dungeon's page shows every step of a chain it has a step in,

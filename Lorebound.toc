@@ -2,7 +2,7 @@
 ## Title: Lorebound
 ## Category: Frog Wizard
 ## Notes: Every zone's quests as rings to close, and a badge for each. What you've done, what's left (quests you skipped past count as done), and the quests you're locked out of for good, left out of the count. /lb
-## Version: 0.3.2
+## Version: 0.3.3
 ## SavedVariables: LoreboundDB
 ## SavedVariablesPerCharacter: LoreboundCharDB
 ## IconTexture: Interface\Icons\INV_Misc_Book_09

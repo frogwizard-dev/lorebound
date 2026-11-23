@@ -58,9 +58,12 @@ def blp(casc, fid, name=None):
     return blp_bytes(raw) if raw else None
 
 
-def parchment(casc):
+def parchment(casc, force=False):
     """The page of Classic's quest window: its four corner textures (QuestFrameTemplates.xml's
-    UI-QuestGreeting-*) put together as the game draws them, and the parchment cut out of the frame."""
+    UI-QuestGreeting-*) put together as the game draws them, and the parchment cut out of the frame. Made once
+    (kept unless force)."""
+    if not force and all(os.path.exists(os.path.join(OUT, name)) for name in ("parchment.webp", "reward-plate.png")):
+        return
     corners = {corner: blp(casc, None, "interface/questframe/ui-questgreeting-%s.blp" % corner)
                for corner in ("topleft", "topright", "botleft", "botright")}
     left, top = corners["topleft"].size
@@ -137,7 +140,7 @@ def zone_icons():
     return {(quoted or bare): icon for quoted, bare, icon in found}
 
 
-def badges_and_icons(casc):
+def badges_and_icons(casc, force=False):
     """The badge frames and masks as PNG, and each class and profession badge's icon (plus the Seal's)."""
     for shape in SHAPES:
         for suffix in ("", "Mask"):
@@ -147,6 +150,9 @@ def badges_and_icons(casc):
     listing = {}
     for zone, icon in sorted(icons.items()):
         name = "icon-%s.webp" % re.sub(r"[^a-z0-9]+", "-", icon.lower()).strip("-")
+        if not force and os.path.exists(os.path.join(OUT, name)):  # made before: no download
+            listing[zone] = name
+            continue
         raw = casc.read_name("interface/icons/%s.blp" % icon.lower())
         if not raw:
             print("  no icon", icon)
@@ -208,8 +214,8 @@ def main():
             image = image.resize((round(image.height * width / rows), image.height))
         save(image.convert("RGB").resize((MAP_SIZE[0], round(MAP_SIZE[0] * image.height / image.width)), Image.LANCZOS), name)
         made += 1
-    parchment(casc)
-    icons = badges_and_icons(casc)
+    parchment(casc, force)
+    icons = badges_and_icons(casc, force)
     print("badge frames and %d icons" % icons)
     size = sum(os.path.getsize(os.path.join(OUT, file_name)) for file_name in os.listdir(OUT))
     print("site art: %d made, %d kept, %d without art; %d KB in all" % (made, kept, missing, size // 1024))

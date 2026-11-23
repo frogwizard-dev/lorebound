@@ -22,7 +22,28 @@ LISTFILES = (os.path.join(HERE, "listfile", "community-listfile.csv"),  # the wh
 AGENT = {"User-Agent": "Mozilla/5.0 (compatible; lorebound-data)"}
 BUILDS = "https://wago.tools/api/builds"
 FILE = "https://wago.tools/api/casc/%d?download&version=%s"
+PAUSE = 0.4      # seconds between downloads from wago.tools, so a run of them doesn't trip its rate limit
+TRIES = 6        # a "too many requests" or server error is waited out and tried again this many times
 TABLE = "https://wago.tools/db2/%s/csv?product=wowf"
+
+
+def download(url):
+    """A file from wago.tools, or None when it hasn't got it (404). Paced, and a 429 (too many requests) or a server
+    error is waited out (its Retry-After, else a growing pause) and tried again."""
+    for attempt in range(TRIES):
+        time.sleep(PAUSE)
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=AGENT), timeout=120) as res:
+                return res.read()
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                return None
+            if error.code != 429 and error.code < 500 or attempt == TRIES - 1:
+                raise
+            wait = error.headers.get("Retry-After")
+            wait = float(wait) if wait and wait.replace(".", "", 1).isdigit() else 5 * 2 ** attempt
+            print("  wago.tools said %d; waiting %.0f s" % (error.code, min(wait, 120)), flush=True)
+            time.sleep(min(wait, 120))
 
 
 def wago_csv(table):
@@ -30,8 +51,9 @@ def wago_csv(table):
     also for tables db2.py can't parse."""
     path = os.path.join(HERE, "lore_sources", table + ".csv")
     if not os.path.exists(path) or time.time() - os.path.getmtime(path) > 24 * 3600:
-        with urllib.request.urlopen(urllib.request.Request(TABLE % table, headers=AGENT), timeout=60) as res:
-            raw = res.read()
+        raw = download(TABLE % table)
+        if raw is None:
+            raise RuntimeError("wago.tools has no table " + table)
         with open(path, "wb") as f:
             f.write(raw)
     csv.field_size_limit(10 ** 7)  # ItemSparse's descriptions
@@ -68,13 +90,9 @@ class GameFiles:
         path = os.path.join(CACHE, self.build(), "%d" % fid)
         if not os.path.exists(path):
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            try:
-                with urllib.request.urlopen(urllib.request.Request(FILE % (fid, self.build()), headers=AGENT), timeout=120) as res:
-                    raw = res.read()
-            except urllib.error.HTTPError as error:
-                if error.code == 404:
-                    return None
-                raise
+            raw = download(FILE % (fid, self.build()))
+            if raw is None:
+                return None
             with open(path, "wb") as f:
                 f.write(raw)
         return open(path, "rb").read()

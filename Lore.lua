@@ -74,6 +74,7 @@ local children = {}     -- [questID] = { quests that need it (needsAll) }
 local zoneByName = {}   -- [name] = zone (outdoor zones win, being first)
 local learnedRow = {}   -- [questID] = true: learned in game, not from the list
 local versionOf = {}    -- [questID] = the first quest of the one race's version it's part of (OtherRacesVersion)
+local versionSteps = {} -- [first quest] = the quests of its version
 local wantText = {}     -- [questID] = true: its Forever text isn't known (Share.lua asks for it)
 local lowerNames        -- [questID] = name in lower case, made on the first search
 
@@ -134,6 +135,12 @@ local function MarkVersions()
                 versionOf[at] = not shared and (mark == nil or mark == id) and id or false
                 at, before, steps = step[F.nextInChain], at, steps + 1
             end
+        end
+    end
+    for id, first in pairs(versionOf) do
+        if first then
+            versionSteps[first] = versionSteps[first] or {}
+            table.insert(versionSteps[first], id)
         end
     end
 end
@@ -367,13 +374,29 @@ local Status
 -- Another race's version of a class quest (MarkVersions): Call of Earth in Durotar, in Mulgore and on Zephras
 -- Isle, only one of which can be done. Left out, not counted done, when the version starts in another race's home
 -- and the group has one in yours that's open to you, unless you took it.
--- A quest of the list done or in your log, not counting another version's (Call of Earth's second step needs
--- either race's first).
-local function Begun(list, first)
+-- A quest of the list outside every race's version, done or in your log (a version's own steps are Took's to judge;
+-- Call of Earth's second step needs either race's first).
+local function Begun(list)
     for _, need in ipairs(list or EMPTY) do
         need = math.abs(need)
-        local version = versionOf[need]
-        if not (version and version ~= first) and (IsDone(need) or active[need]) then return true end
+        if not versionOf[need] and (IsDone(need) or active[need]) then return true end
+    end
+    return false
+end
+
+-- Whether you took a version: its first quest done or in your log. Except that the game marks the other quest of
+-- the pair done too (a Tauren who finishes Kranal Fiss's Call of Fire has the Skyborne's first one marked done):
+-- with both marked, only a later step of the version done or in your log says you took it.
+local function Took(first)
+    if active[first] then return true end
+    if not IsDone(first) then return false end
+    local pairDone = false
+    for _, other in ipairs(quests[first][F.exclusiveTo] or EMPTY) do
+        if IsDone(other) then pairDone = true end
+    end
+    if not pairDone then return true end
+    for _, step in ipairs(versionSteps[first] or EMPTY) do
+        if step ~= first and (IsDone(step) or active[step]) then return true end
     end
     return false
 end
@@ -382,12 +405,15 @@ local function OtherRacesVersion(id, row)
     local first = versionOf[id]
     if not first or not me.home or me.home[row[F.map]] then return false end
     local firstRow = quests[first]
-    if me.home[firstRow[F.map]] or IsDone(first) or active[first] then return false end
+    if me.home[firstRow[F.map]] or Took(first) then return false end
     -- On your way to it some other way (a quest it needs is done or in your log): yours too.
-    if Begun(row[F.needsAny], first) or Begun(row[F.needsAll], first) then return false end
+    if Begun(row[F.needsAny]) or Begun(row[F.needsAll]) then return false end
+    -- The group has a version that's yours: in your home and open to you, or one you've done or picked up.
     for _, other in ipairs(firstRow[F.exclusiveTo]) do
         local otherRow = quests[other]
-        if otherRow and me.home[otherRow[F.map]] and ForMe(otherRow) then return true end
+        if otherRow and ((me.home[otherRow[F.map]] and ForMe(otherRow)) or IsDone(other) or active[other]) then
+            return true
+        end
     end
     return false
 end
@@ -537,8 +563,10 @@ Status = function(id)
     local row = quests[id]
     if not row then return HIDDEN end
     if IsDone(id) then
-        status[id] = DONE
-        return DONE
+        -- Marked done by the game for another race's version you didn't take (Took): not yours either way.
+        local state = versionOf[id] and OtherRacesVersion(id, row) and HIDDEN or DONE
+        status[id] = state
+        return state
     end
     status[id] = VISITING
     local state, code, a, b = Work(id, row)
