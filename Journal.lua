@@ -690,27 +690,29 @@ local function SortQuests(list)
     return list
 end
 
--- A zone's chains with two or more steps listed here, each placed once: in the section of its first step not done
--- (a filter that hides that section: the first shown one any of its steps is in), drawn as its heading and then
--- every step listed here in order, joined by a line. Returns { [section state] = { block, ... } } and the quests
--- the blocks hold.
-local function ChainBlocks(listed, wanted)
-    local byChain, order = {}, {}
+-- The chains with a step listed here, each placed once: in the section of its first step not done (a filter that
+-- hides that section: the first shown one any of its steps is in), drawn as its heading and then all its steps in
+-- order, joined by a line, the ones in other zones too (a dungeon's chain often starts outside it), as long as two
+-- or more are for this character. Returns { [section state] = { block, ... } } and the listed quests the blocks
+-- hold (the others stay counted in their own zones).
+local function ChainBlocks(listed, wanted, showLocked)
+    local here, order, seen = {}, {}, {}
     for _, id in ipairs(listed) do
+        here[id] = true
         local chain = Lore.Row(id)[F.chain]
-        if chain then
-            if not byChain[chain[1]] then
-                byChain[chain[1]] = {}
-                order[#order + 1] = chain[1]
-            end
-            table.insert(byChain[chain[1]], id)
+        if chain and not seen[chain[1]] then
+            seen[chain[1]] = true
+            order[#order + 1] = chain[1]
         end
     end
     local placed, held = {}, {}
     for _, first in ipairs(order) do
-        local steps = byChain[first]
+        local steps = {}
+        for _, id in ipairs(Lore.ChainSteps(first)) do
+            local state = Lore.StatusOf(id)
+            if here[id] or (state ~= Lore.HIDDEN and (state ~= Lore.LOCKED or showLocked)) then steps[#steps + 1] = id end
+        end
         if #steps > 1 then
-            table.sort(steps, function(a, b) return Lore.Row(a)[F.chain][2] < Lore.Row(b)[F.chain][2] end)
             local at = Lore.DONE
             for _, id in ipairs(steps) do
                 local state = Lore.StatusOf(id)
@@ -729,8 +731,8 @@ local function ChainBlocks(listed, wanted)
             end
             if at then
                 placed[at] = placed[at] or {}
-                table.insert(placed[at], { first = first, steps = steps })
-                for _, id in ipairs(steps) do held[id] = true end
+                table.insert(placed[at], { first = first, steps = steps, here = here })
+                for _, id in ipairs(steps) do held[id] = here[id] or nil end
             end
         end
     end
@@ -742,7 +744,7 @@ local function InsertBlock(provider, block)
     provider:Insert({ chainHead = first, label = Lore.Row(first) and Lore.Row(first)[F.name] or Lore.Row(steps[1])[F.name] or "" })
     for i, id in ipairs(steps) do
         local before = steps[i - 1]
-        provider:Insert({ id = id, step = Lore.Row(id)[F.chain][2],
+        provider:Insert({ id = id, step = Lore.Row(id)[F.chain][2], showZone = not block.here[id] or nil,
             railTop = before and (Lore.StatusOf(before) == Lore.DONE and "done" or "open") or nil,
             railBottom = steps[i + 1] and (Lore.StatusOf(id) == Lore.DONE and "done" or "open") or nil })
     end
@@ -785,7 +787,7 @@ function Journal:FillQuests(keepScroll)
                 for _, id in ipairs(byStatus[section[1]] or {}) do listed[#listed + 1] = id end
             end
         end
-        local blocks, held = ChainBlocks(listed, Wanted)
+        local blocks, held = ChainBlocks(listed, Wanted, ns.db.showLocked)
         for _, section in ipairs(SECTIONS) do
             local state, label = section[1], section[2]
             if Wanted(state) then
