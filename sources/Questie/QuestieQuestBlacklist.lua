@@ -2822,7 +2822,7 @@ function QuestieQuestBlacklist:Load()
         [1372] = Expansions.Current >= Expansions.Cata, -- Removed with cata
         [1373] = Expansions.Current >= Expansions.Cata, -- Removed with cata
         [1374] = Expansions.Current >= Expansions.Cata or Questie.IsForever, -- Removed with cata, replaced by 93128 on Forever
-        [1375] = Expansions.Current >= Expansions.Cata, -- Removed with cata
+        [1375] = Expansions.Current >= Expansions.Cata or Questie.IsForever, -- Removed with cata, no replacement in Forever
         [1380] = Expansions.Current >= Expansions.Cata or Questie.IsForever, -- Removed with cata, replaced by 96222 on Forever
         [1381] = Expansions.Current >= Expansions.Cata or Questie.IsForever, -- Removed with cata, replaced by 96222 on Forever
         [1382] = Expansions.Current >= Expansions.Cata, -- Removed with cata
@@ -7104,6 +7104,42 @@ function QuestieQuestBlacklist:Load()
         [81745] = not Questie.IsSoD, -- Duskwood Mission XVI: Rescue Kroll Mountainshade
         [81746] = not Questie.IsSoD, -- Duskwood Mission XVII: Rescue Alara Grovemender
         [81747] = not Questie.IsSoD, -- Duskwood Mission XVIII: Rescue Elenora Marshwalker
+        [81786] = not Questie.IsSoD, -- Hinterlands Mission I: Defeat Moonkin
+        [81787] = not Questie.IsSoD, -- Hinterlands Mission II: Defeat Giant Turtles
+        [81788] = not Questie.IsSoD, -- Hinterlands Mission III: Defeat Dragonkin
+        [81789] = not Questie.IsSoD, -- Hinterlands Mission IV: Dragon Intelligence
+        [81817] = not Questie.IsSoD, -- Hinterlands Mission V: Turtle Intelligence
+        [81820] = not Questie.IsSoD, -- Hinterlands Mission VI: Moonkin Intelligence
+        [81826] = not Questie.IsSoD, -- Hinterlands Mission VII: Recover Star-Touched Dragonegg
+        [81830] = not Questie.IsSoD, -- Hinterlands Mission VIII: Recover Elunar Relic
+        [81832] = not Questie.IsSoD, -- Hinterlands Mission IX: Recover Dreampearl
+        [81833] = not Questie.IsSoD, -- Hinterlands Mission X: Star Lotus
+        [81834] = not Questie.IsSoD, -- Hinterlands Mission XI: Starsilver Ore
+        [81835] = not Questie.IsSoD, -- Hinterlands Mission XII: Starshells
+        [81837] = not Questie.IsSoD, -- Hinterlands Mission XIII: Defeat Florius
+        [81838] = not Questie.IsSoD, -- Hinterlands Mission XIV: Defeat Doomkin
+        [81839] = not Questie.IsSoD, -- Hinterlands Mission XV: Defeat Ghamoo-Raja
+        [81850] = not Questie.IsSoD, -- Hinterlands Mission XVI: Rescue Elianar Shadowdrinker
+        [81851] = not Questie.IsSoD, -- Hinterlands Mission XVII: Rescue Serlina Starbright
+        [81852] = not Questie.IsSoD, -- Hinterlands Mission XVIII: Rescue Veanna Cloudsleeper
+        [81855] = not Questie.IsSoD, -- Feralas Mission I: Defeat Children of Cenarius
+        [81856] = not Questie.IsSoD, -- Feralas Mission II: Defeat Harpies
+        [81857] = not Questie.IsSoD, -- Feralas Mission III: Defeat Dragonkin
+        [81858] = not Questie.IsSoD, -- Feralas Mission IV: Dragon Intelligence
+        [81859] = not Questie.IsSoD, -- Feralas Mission V: Cenarion Intelligence
+        [81860] = not Questie.IsSoD, -- Feralas Mission VI: Harpy Intelligence
+        [81861] = not Questie.IsSoD, -- Feralas Mission VII: Recover Moonglow Dragonegg
+        [81863] = not Questie.IsSoD, -- Feralas Mission VIII: Recover Keeper's Notes
+        [81864] = not Questie.IsSoD, -- Feralas Mission IX: Recover Harpy Screed
+        [81865] = not Questie.IsSoD, -- Feralas Mission X: Moonroot
+        [81866] = not Questie.IsSoD, -- Feralas Mission XI: Greater Moonstone
+        [81867] = not Questie.IsSoD, -- Feralas Mission XII: Greater Moondragon Scales
+        [81868] = not Questie.IsSoD, -- Feralas Mission XIII: Defeat Tyrannikus
+        [81870] = not Questie.IsSoD, -- Feralas Mission XIV: Defeat Alondrius
+        [81871] = not Questie.IsSoD, -- Feralas Mission XV: Defeat Slirena
+        [81872] = not Questie.IsSoD, -- Feralas Mission XVI: Rescue Mellias Earthtender
+        [81873] = not Questie.IsSoD, -- Feralas Mission XVII: Rescue Nerene Brooksinger
+        [81874] = not Questie.IsSoD, -- Feralas Mission XVIII: Rescue Jamniss Treemender
         [81947] = HIDE_ON_MAP, -- Sanguine Sorcery
         [81949] = HIDE_ON_MAP, -- Legends of the Tidesages
         [81951] = HIDE_ON_MAP, -- The Liminal and the Arcane
@@ -7132,6 +7168,7 @@ function QuestieQuestBlacklist:Load()
         [91900] = HIDE_ON_MAP, -- A Sealed Crate
         [91901] = HIDE_ON_MAP, -- A Sealed Crate
         [91902] = HIDE_ON_MAP, -- A Sealed Crate
+        [91903] = HIDE_ON_MAP, -- A Sealed Crate
         [91904] = HIDE_ON_MAP, -- A Sealed Crate
         [91905] = HIDE_ON_MAP, -- A Sealed Crate
         [91906] = HIDE_ON_MAP, -- A Sealed Crate

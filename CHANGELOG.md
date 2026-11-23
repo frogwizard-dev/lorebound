@@ -1,5 +1,9 @@
 # Lorebound
 
+## 0.3.4
+
+- Quest list update: 0 quests added, 1 removed (4690 in all).
+
 ## 0.3.3
 
 - **Fix**: finishing your own race's class quest could bring another race's version of it back. The game marks the
