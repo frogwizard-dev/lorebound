@@ -1,5 +1,11 @@
 # Lorebound
 
+## 0.3.2
+
+- **Whole chains, wherever they start**: a zone's or dungeon's page shows every step of a chain it has a step in,
+  the ones in other zones too (named in place of the quest giver), so a dungeon quest that's Part 4 of a chain begun
+  outside it shows Parts 1 to 3 above it. Those steps still count in their own zones.
+
 ## 0.3.1
 
 - **A toast you notice**: it slides down into place as it fades in, waits a beat, then its ring ticks up more
@@ -9,9 +15,6 @@
   from empty, gathering speed. At the close the banner jolts, its border flashes gold, a halo and a flash burst,
   sparks fly, a gold starburst opens and turns behind the badge as it springs out, and the title becomes
   "... complete!" with the details following. It stays 10 seconds.
-- **Whole chains, wherever they start**: a zone's or dungeon's page shows every step of a chain it has a step in,
-  the ones in other zones too (named in place of the quest giver), so a dungeon quest that's Part 4 of a chain begun
-  outside it shows Parts 1 to 3 above it. Those steps still count in their own zones.
 - **Fix**: the settings' Test fanfare showed the badge greyed out, as not earned yet; it now shows it as you'd earn it.
 
 ## 0.3.0
