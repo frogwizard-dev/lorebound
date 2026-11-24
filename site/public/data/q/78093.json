@@ -1,1 +1,1 @@
-{"objective":["Return the Orb Shards to Delgren."],"needs":[],"same":null,"start":["Shattered Orb",1440,89.4,77],"end":["Delgren the Purifier",1440,26.2,38.7],"chain":[],"spots":{}}
+{"objective":["Return the Orb Shards to Delgren."],"needs":[],"same":null,"start":["Shattered Orb",1440,89.4,77],"end":["Delgren the Purifier",1440,26.2,38.7],"chain":[],"rewards":{"choose":[],"items":[[277205,1,"Cloak of the Divine Storm",3,null]],"rep":[],"money":2500,"spell":0,"xp":4600},"rewardsFrom":"game","spots":{}}

@@ -32,6 +32,9 @@ ns.defaults = {
     shared = {},         -- [questID] = true: learned quests already shared (Share.lua)
     textShared = {},     -- [questID] = the text fields already shared ("d", "o", "c", "p" in a string; Share.lua)
     textClean = {},      -- [questID] = the text fields kept with the reader's name as $N (only those are shared)
+    rewards = {},        -- [questID] = { ch = { { item, count } }, it = { { item, count } }, m = copper, xp = experience }: as the game showed
+    rewardsShared = {},  -- [questID] = true: its rewards already shared (Share.lua)
+    unanswered = {},     -- { version = the list's, [questID] = true }: the game gave nothing when asked (Core.lua)
 }
 local CHAR_DEFAULTS = {
     days = {},           -- ["2026-11-21"] = quests turned in that day (the last 30 days)
@@ -293,6 +296,242 @@ local function Keep(questID, saved, index, text)
     if not clean:find(tostring(index), 1, true) then ns.db.textClean[questID] = clean .. index end
 end
 
+-- Money is left out at the level cap, where the game pays the experience as gold on top.
+local function AtCap()
+    local cap = GetMaxPlayerLevel and GetMaxPlayerLevel() or 60
+    return (UnitLevel("player") or 0) >= cap
+end
+
+-- The rewards a quest window shows (offered or handing in), or nil when it shows none, or an item it can't name yet
+-- (not loaded): a partial list would be shared as the whole.
+local function WindowRewards()
+    local found = { ch = {}, it = {} }
+    local function Read(kind, count, into)
+        for i = 1, count or 0 do
+            local _, _, amount, _, _, item = GetQuestItemInfo(kind, i)
+            if type(item) ~= "number" then
+                local link = GetQuestItemLink and GetQuestItemLink(kind, i)
+                item = type(link) == "string" and tonumber(link:match("item:(%d+)"))
+            end
+            if not item then return false end
+            into[#into + 1] = { item, type(amount) == "number" and amount > 0 and amount or 1 }
+        end
+        return true
+    end
+    if not Read("choice", GetNumQuestChoices and GetNumQuestChoices(), found.ch)
+        or not Read("reward", GetNumQuestRewards and GetNumQuestRewards(), found.it) then
+        return nil
+    end
+    local money = not AtCap() and GetRewardMoney and GetRewardMoney()
+    found.m = type(money) == "number" and money or 0
+    found.cap = AtCap() or nil -- read at the cap: its money unknown, so not shared
+    if #found.ch == 0 and #found.it == 0 and found.m == 0 then return nil end
+    return found
+end
+
+-- A quest's rewards by its ID (in your log, or loaded from the server), or nil when it gives none, or an item
+-- has no ID (a partial list would be shared as the whole).
+local function LogRewards(questID)
+    local found = { ch = {}, it = {} }
+    local function Read(countOf, infoOf, into)
+        if type(countOf) ~= "function" or type(infoOf) ~= "function" then return false end
+        local ok, count = pcall(countOf, questID)
+        if not ok or type(count) ~= "number" then return false end
+        for i = 1, count do
+            local okItem, _, _, amount, _, _, item = pcall(infoOf, i, questID)
+            if not okItem or type(item) ~= "number" or item <= 0 then return false end
+            into[#into + 1] = { item, type(amount) == "number" and amount > 0 and amount or 1 }
+        end
+        return true
+    end
+    if not Read(GetNumQuestLogChoices, GetQuestLogChoiceInfo, found.ch)
+        or not Read(GetNumQuestLogRewards, GetQuestLogRewardInfo, found.it) then
+        return nil
+    end
+    local okMoney, money = pcall(GetQuestLogRewardMoney, questID)
+    found.m = not AtCap() and okMoney and type(money) == "number" and money > 0 and money or 0
+    found.cap = AtCap() or nil
+    local okXP, xp = pcall(GetQuestLogRewardXP, questID)
+    if okXP and type(xp) == "number" and xp > 0 then found.xp = xp end
+    if #found.ch == 0 and #found.it == 0 and found.m == 0 and not found.xp then return nil end
+    return found
+end
+
+-- Every quest in your log: its description and objective (kept as a quest window's are), and its rewards, choices
+-- and all (asked by quest ID: nothing is selected or changed in Blizzard's quest log). Read when the journal opens.
+-- A call that ignored which quest it's asked about would answer the same for every quest. The text (asked by its
+-- place in the log) is kept only when two or more quests answer and differ; the rewards (asked by the quest itself,
+-- which the game honours: 60 silver for Storm, Earth, and Fire) unless two or more answer and are all the same.
+function ns.ReadQuestLog()
+    local texts, rewards, textKeys, rewardKeys = {}, {}, {}, {}
+    local entries = C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetNumQuestLogEntries() or 0
+    for index = 1, entries do
+        local info = C_QuestLog.GetInfo(index)
+        local questID = info and not info.isHeader and info.questID
+        if questID and questID > 0 then
+            local ok, description, objective = pcall(GetQuestLogQuestText, index)
+            if ok and type(description) == "string" and description ~= "" then
+                texts[questID] = { description, objective }
+                textKeys[description] = true
+            end
+            local found = LogRewards(questID)
+            if found and (#found.ch > 0 or #found.it > 0 or found.m > 0) then
+                local key = {}
+                for _, list in ipairs({ found.ch, found.it }) do
+                    for _, entry in ipairs(list) do key[#key + 1] = entry[1] .. "x" .. entry[2] end
+                    key[#key + 1] = "/"
+                end
+                key[#key + 1] = found.m
+                rewards[questID] = found
+                rewardKeys[table.concat(key, ":")] = true
+            end
+        end
+    end
+    local function Varied(byQuest, keys)
+        local quests, distinct = 0, 0
+        for _ in pairs(byQuest) do quests = quests + 1 end
+        for _ in pairs(keys) do distinct = distinct + 1 end
+        return quests >= 2 and distinct >= 2
+    end
+    if Varied(texts, textKeys) then
+        for questID, words in pairs(texts) do
+            local saved = ns.db.text[questID] or {}
+            if not saved[1] then Keep(questID, saved, 1, words[1]) end
+            if not saved[2] then Keep(questID, saved, 2, words[2]) end
+            if next(saved) then ns.db.text[questID] = saved end
+        end
+    end
+    local rewardQuests, rewardKinds = 0, 0
+    for _ in pairs(rewards) do rewardQuests = rewardQuests + 1 end
+    for _ in pairs(rewardKeys) do rewardKinds = rewardKinds + 1 end
+    if not (rewardQuests >= 2 and rewardKinds == 1) then
+        for questID, found in pairs(rewards) do
+            local saved = ns.db.rewards[questID]
+            if not saved or saved.part then ns.db.rewards[questID] = found end -- the whole, over the server's part
+        end
+    end
+    ns.shareStale = true
+end
+
+------------------------------------------------------------------------------
+-- Rewards asked of the game: the server tells any quest's rewards, in your log or not (as ForeverDungeonJournal
+-- reads them). Asked for a quest page that doesn't know them (first) and for the quests of the zone the journal
+-- shows, one at a time and out of combat. An answer counts only once the server says the quest's data is loaded:
+-- before that every count reads 0. (Already loaded, the answer comes during the call itself.)
+------------------------------------------------------------------------------
+
+local asked = {}   -- [questID] = true: queued or asked this session (each quest once)
+local queue = {}   -- quests to ask next, in order
+local waitingFor   -- the quest asked and not answered yet
+local onAnswer = {} -- [questID] = a function to run once it's answered (its quest page redrawing)
+local AskNext
+
+-- A loaded quest's rewards. The game tells a quest's choices only while it's in your log: for any other it
+-- answers none, so that answer is only part of them (kept for the quest page, not shared).
+local function ServerRewards(questID)
+    local found = LogRewards(questID)
+    if found and #found.ch == 0
+        and not (C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(questID)) then
+        found.part = true
+    end
+    return found
+end
+
+-- Quests the server gave nothing for, kept until the list changes: asking again would only wait out the timeout.
+local function Unanswered()
+    local version = ns.data and ns.data.version
+    if ns.db.unanswered.version ~= version then ns.db.unanswered = { version = version } end
+    return ns.db.unanswered
+end
+
+local function Answered(questID, loaded)
+    if questID ~= waitingFor then return end
+    waitingFor = nil
+    local found = loaded and ServerRewards(questID)
+    if not found then Unanswered()[questID] = true end
+    if found then
+        local saved = ns.db.rewards[questID]
+        if not saved then
+            ns.db.rewards[questID] = found
+            ns.shareStale = true
+        elseif not saved.xp then
+            saved.xp = found.xp -- a quest window's: only the experience is new
+        end
+    end
+    C_Timer.After(0.1, AskNext) -- before the page redraws, so an error there can't stop the queue
+    local done = onAnswer[questID]
+    onAnswer[questID] = nil
+    if done then done() end
+end
+
+function AskNext()
+    if waitingFor then return end
+    if InCombatLockdown() then
+        ns.events:RegisterEvent("PLAYER_REGEN_ENABLED") -- carried on after the fight
+        return
+    end
+    local questID = table.remove(queue, 1)
+    if not questID then
+        ns.events:UnregisterEvent("QUEST_DATA_LOAD_RESULT")
+        return
+    end
+    waitingFor = questID
+    ns.events:RegisterEvent("QUEST_DATA_LOAD_RESULT")
+    -- The answer can come before the call returns: waitingFor is set first.
+    if not pcall(C_QuestLog.RequestLoadQuestByID, questID) then return Answered(questID, false) end
+    C_Timer.After(3, function() -- a quest the server never answers for
+        if waitingFor == questID then Answered(questID, false) end
+    end)
+end
+
+local function Unknown(id)
+    return type(id) == "number" and ns.Lore.LacksRewards(id) and not ns.db.rewards[id] and not Unanswered()[id]
+end
+
+-- Queues the quests whose rewards aren't known (the zone shown), in place of the zone shown before's.
+function ns.AskRewards(ids)
+    if not (C_QuestLog and C_QuestLog.RequestLoadQuestByID) then return end
+    for i = #queue, 1, -1 do
+        local id = queue[i]
+        if not onAnswer[id] then -- not asked yet: free to be queued again
+            table.remove(queue, i)
+            asked[id] = nil
+        end
+    end
+    for _, id in ipairs(ids) do
+        if Unknown(id) and not asked[id] then
+            asked[id] = true
+            queue[#queue + 1] = id
+        end
+    end
+    AskNext()
+end
+
+-- Asks for one quest's rewards ahead of the rest, then runs done (the quest page shown).
+function ns.AskRewardsNow(id, done)
+    if not (C_QuestLog and C_QuestLog.RequestLoadQuestByID) or not Unknown(id) then return end
+    if id == waitingFor then
+        onAnswer[id] = done
+        return
+    end
+    local queued = false
+    for i = #queue, 1, -1 do
+        local other = queue[i]
+        if other == id then
+            table.remove(queue, i)
+            queued = true
+        elseif onAnswer[other] then -- the page shown before's, not asked yet: that page is gone
+            table.remove(queue, i)
+            onAnswer[other], asked[other] = nil, nil
+        end
+    end
+    if asked[id] and not queued then return end -- answered already this session, with nothing to keep
+    asked[id] = true
+    onAnswer[id] = done
+    table.insert(queue, 1, id)
+    AskNext()
+end
+
 local function QuestWindow(kind)
     local questID = GetQuestID and GetQuestID()
     if not questID or questID == 0 then return end
@@ -306,6 +545,17 @@ local function QuestWindow(kind)
         Keep(questID, saved, 3, GetRewardText())
     end
     if next(saved) then ns.db.text[questID] = saved end
+    if kind ~= "progress" then
+        local ok, found = pcall(WindowRewards)
+        if ok and found then
+            local before = ns.db.rewards[questID]
+            if before then -- what the window doesn't tell, kept: the experience, and money read below the cap
+                found.xp = before.xp
+                if found.cap and not before.cap then found.m, found.cap = before.m, nil end
+            end
+            ns.db.rewards[questID] = found
+        end
+    end
     ns.shareStale = true
     local giver, giverName = Who()
     if kind == "detail" and not Repeatable(questID) then
@@ -393,11 +643,14 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
         Accepted(arg2 or arg1) -- (questID), or (logIndex, questID) on older clients
     elseif event == "QUEST_TURNED_IN" then
         TurnedIn(arg1)
+    elseif event == "QUEST_DATA_LOAD_RESULT" then
+        Answered(arg1, arg2 ~= false)
     elseif event == "PLAYER_REGEN_ENABLED" then
         events:UnregisterEvent("PLAYER_REGEN_ENABLED")
         local lines = waiting
         waiting = {}
         for _, text in ipairs(lines) do ns.Say(text) end
+        AskNext()
     end
 end)
 

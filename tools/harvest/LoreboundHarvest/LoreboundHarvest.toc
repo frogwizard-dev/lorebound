@@ -1,0 +1,8 @@
+## Interface: 16001, 120000, 120001, 120005, 120007, 120100
+## Title: Lorebound Harvest
+## Notes: Asks the game for the rewards of every quest in Lorebound's list, once, for tools/harvest/import_harvest.py. Not released. /lbh
+## Version: 1
+## SavedVariables: LoreboundHarvestDB
+
+Quests.lua
+Harvest.lua

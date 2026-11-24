@@ -1,1 +1,1 @@
-{"objective":["Fish up 10 Winter Squid for Kurll at Valormok."],"needs":[["Raw Winter Squid",10]],"same":null,"start":["Kurll",1447,21.8,52.1],"end":["Kurll",1447,21.8,52.1],"chain":[],"spots":{}}
+{"objective":["Fish up 10 Winter Squid for Kurll at Valormok."],"needs":[["Raw Winter Squid",10]],"same":null,"start":["Kurll",1447,21.8,52.1],"end":["Kurll",1447,21.8,52.1],"chain":[],"rewards":{"choose":[],"items":[[259890,1,"Deep-Sea Waders",2,"inv_boots_05"]],"rep":[],"money":0,"spell":0,"xp":4400},"rewardsFrom":"game","spots":{}}

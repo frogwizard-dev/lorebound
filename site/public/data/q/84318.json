@@ -1,1 +1,1 @@
-{"objective":["Find Orthas' missing hammer in Corrin's Crossing."],"needs":[],"same":null,"start":["Orthas",1423,24.3,69.1],"end":["Orthas",1423,24.3,69.1],"chain":[84318,84319],"spots":{}}
+{"objective":["Find Orthas' missing hammer in Corrin's Crossing."],"needs":[],"same":null,"start":["Orthas",1423,24.3,69.1],"end":["Orthas",1423,24.3,69.1],"chain":[84318,84319],"rewards":{"choose":[],"items":[],"rep":[],"money":15750,"spell":0,"xp":6000},"rewardsFrom":"game","spots":{}}

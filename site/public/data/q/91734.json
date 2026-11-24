@@ -1,1 +1,1 @@
-{"objective":["Speak to Jediga in Azshara."],"needs":[],"same":null,"start":["Andron Gant",1458,54.8,76.3],"end":[null,null,null,null],"chain":[],"spots":{}}
+{"objective":["Speak to Jediga in Azshara."],"needs":[],"same":null,"start":["Andron Gant",1458,54.8,76.3],"end":[null,null,null,null],"chain":[],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":500},"rewardsFrom":"game","spots":{}}

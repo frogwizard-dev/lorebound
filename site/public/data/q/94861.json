@@ -1,1 +1,1 @@
-{"objective":["Go with Hurley to save Curly."],"needs":[],"same":null,"start":["Halligan Turner",2548,41.2,62.9],"end":["Halligan Turner",2548,41.2,62.9],"chain":[94857,94861],"spots":{}}
+{"objective":["Go with Hurley to save Curly."],"needs":[],"same":null,"start":["Halligan Turner",2548,41.2,62.9],"end":["Halligan Turner",2548,41.2,62.9],"chain":[94857,94861],"rewards":{"choose":[[274928,1,"Curly's Chopper",2,"inv_axe_14"],[274929,1,"Hurley's Felling Axe",2,"inv_misc_1h_lumberaxe_a_01"]],"items":[],"rep":[],"money":0,"spell":0,"xp":3000},"rewardsFrom":"game","spots":{}}

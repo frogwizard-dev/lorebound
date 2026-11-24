@@ -1,1 +1,1 @@
-{"objective":["Read the Hallowed Memorandum and speak to Branstock Khalder in Anvilmar."],"needs":[],"same":null,"start":["Sten Stoutarm",1426,29.9,71.2],"end":["Branstock Khalder",1426,28.6,66.4],"chain":[],"spots":{}}
+{"objective":["Read the Hallowed Memorandum and speak to Branstock Khalder in Anvilmar."],"needs":[],"same":null,"start":["Sten Stoutarm",1426,29.9,71.2],"end":["Branstock Khalder",1426,28.6,66.4],"chain":[],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{}}

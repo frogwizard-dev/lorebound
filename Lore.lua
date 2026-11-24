@@ -76,6 +76,8 @@ local learnedRow = {}   -- [questID] = true: learned in game, not from the list
 local versionOf = {}    -- [questID] = the first quest of the one race's version it's part of (OtherRacesVersion)
 local versionSteps = {} -- [first quest] = the quests of its version
 local wantText = {}     -- [questID] = true: its Forever text isn't known (Share.lua asks for it)
+local wantRewards = {}  -- [questID] = true: its rewards aren't known (likewise, and Core.lua asks the game)
+local wantChoices = {}  -- [questID] = true: its rewards are known but for any choice (shared from players' logs)
 local lowerNames        -- [questID] = name in lower case, made on the first search
 
 local me = {}           -- level, raceBit, home ({ [uiMap] = true }), faction (1 Alliance, 2 Horde), classBit, skills
@@ -168,7 +170,14 @@ function Lore.Init(data)
     end
     for _, id in ipairs(data.skip or EMPTY) do skip[id] = true end
     for _, id in ipairs(data.wantText or EMPTY) do wantText[id] = true end
-    data.horde, data.skip, data.wantText = nil, nil, nil
+    for _, id in ipairs(data.wantRewards or EMPTY) do wantRewards[id] = true end
+    for _, id in ipairs(data.wantChoices or EMPTY) do wantChoices[id] = true end
+    for id in pairs(ns.db.rewards or EMPTY) do -- kept from quest windows, but the list has them now
+        if not wantRewards[id] and not wantChoices[id] and quests[id] then
+            ns.db.rewards[id], ns.db.rewardsShared[id] = nil, nil
+        end
+    end
+    data.horde, data.skip, data.wantText, data.wantRewards, data.wantChoices = nil, nil, nil, nil, nil
     for i, zone in ipairs(zones) do
         if not zoneByName[zone[1]] then zoneByName[zone[1]] = i end
     end
@@ -754,9 +763,57 @@ function Lore.ChainSteps(first)
     return chainSteps[first] or EMPTY
 end
 
+-- A chain's steps as this character sees them, in order: the ones it can't have left out, and where the chain starts
+-- with another race's version of a quest (Call of Air from Orgrimmar, for a Tauren), its own version of that quest
+-- (Thunder Bluff's, which the list keeps outside the chain) in its place.
+function Lore.ChainFor(first)
+    local all, steps = Lore.ChainSteps(first), {}
+    for _, id in ipairs(all) do
+        if Status(id) ~= HIDDEN then steps[#steps + 1] = id end
+    end
+    local head = all[1]
+    if head and versionOf[head] and Status(head) == HIDDEN then -- another race's version of the first step
+        local own, inChain = nil, {}
+        for _, id in ipairs(all) do inChain[id] = true end
+        for _, other in ipairs(quests[head][F.exclusiveTo] or EMPTY) do
+            local row = quests[other]
+            local state = row and not row[F.chain] and not inChain[other] and Status(other)
+            if state and state ~= HIDDEN and (not own or state == DONE) then own = other end
+        end
+        if own then table.insert(steps, 1, own) end
+    end
+    return steps
+end
+
+-- The chain a quest belongs to (its first quest), also for a race's own version of a chain's first step.
+function Lore.ChainOf(id)
+    local row = quests[id]
+    if not row then return nil end
+    if row[F.chain] then return row[F.chain][1] end
+    for _, other in ipairs(row[F.exclusiveTo] or EMPTY) do
+        local chain = quests[other] and quests[other][F.chain]
+        if chain and chain[1] == other then
+            for _, step in ipairs(Lore.ChainFor(other)) do
+                if step == id then return other end -- only a chain it's shown in (a race's own first step)
+            end
+        end
+    end
+    return nil
+end
+
 -- Whether the list lacks this quest's Forever text (changed or new in Forever, or learned in game).
 function Lore.WantsText(id)
     return wantText[id] or learnedRow[id] or false
+end
+
+-- Whether the list lacks this quest's rewards (or it's learned in game).
+function Lore.WantsRewards(id)
+    return wantRewards[id] or wantChoices[id] or learnedRow[id] or false
+end
+
+-- Whether the list knows none of this quest's rewards (or it's learned in game): worth asking the game for.
+function Lore.LacksRewards(id)
+    return wantRewards[id] or learnedRow[id] or false
 end
 
 function Lore.IsLearned(id)

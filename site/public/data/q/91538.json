@@ -1,1 +1,1 @@
-{"objective":["Bring the Sin'dorei Tome of Summoning back to Jediga in Valormok."],"needs":[],"same":null,"start":["Sin'dorei Tome of Summoning",1447,59.5,31.3],"end":["Jediga",1447,22.6,51.4],"chain":[91538,91547,91548],"spots":{}}
+{"objective":["Bring the Sin'dorei Tome of Summoning back to Jediga in Valormok."],"needs":[],"same":null,"start":["Sin'dorei Tome of Summoning",1447,59.5,31.3],"end":["Jediga",1447,22.6,51.4],"chain":[91538,91547,91548],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":550},"rewardsFrom":"game","spots":{}}

@@ -1,1 +1,1 @@
-{"objective":["Speak to Nara Wildmane at Elder Rise in Thunder Bluff."],"needs":[],"same":null,"start":["Jediga",1447,22.6,51.4],"end":["Nara Wildmane",1456,75.7,31.6],"chain":[92346,92343],"spots":{}}
+{"objective":["Speak to Nara Wildmane at Elder Rise in Thunder Bluff."],"needs":[],"same":null,"start":["Jediga",1447,22.6,51.4],"end":["Nara Wildmane",1456,75.7,31.6],"chain":[92346,92343],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":550},"rewardsFrom":"game","spots":{}}

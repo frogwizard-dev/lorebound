@@ -1,1 +1,1 @@
-{"objective":["Speak with the Rugged Traveler."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[],"spots":{}}
+{"objective":["Speak with the Rugged Traveler."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[],"rewards":{"choose":[],"items":[[221316,1,"Premo's Poise-Demanding Uniform",1,"inv_shirt_black_01"],[216619,3,"Student Fodder",2,"inv_misc_food_pinenut"],[221315,1,"Traveler's Symbols",3,"inv_misc_note_05"]],"rep":[],"money":8500,"spell":0,"xp":8400},"rewardsFrom":"game","spots":{}}

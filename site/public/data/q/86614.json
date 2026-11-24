@@ -1,1 +1,1 @@
-{"objective":["Return the Monogrammed Silver Hair clip to its owner."],"needs":[],"same":null,"start":["Discarded Fishing Toolbox",1432,45.7,43.3],"end":["Khara Deepwater",1432,40.3,39.3],"chain":[],"spots":{}}
+{"objective":["Return the Monogrammed Silver Hair clip to its owner."],"needs":[],"same":null,"start":["Discarded Fishing Toolbox",1432,45.7,43.3],"end":["Khara Deepwater",1432,40.3,39.3],"chain":[],"rewards":{"choose":[],"items":[[281256,1,"Repurposed Hair Band",2,null]],"rep":[],"money":1200,"spell":0,"xp":null},"rewardsFrom":"game","spots":{}}

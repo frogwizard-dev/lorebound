@@ -1,1 +1,1 @@
-{"objective":["Find Howin Kindfeather east of Menethil Harbor, along the road."],"needs":[],"same":null,"start":["Captain Stoutfist",1437,9.9,57.5],"end":["Howin Kindfeather",1437,49.4,42.1],"chain":[468,455,473,464,465,474,98230],"spots":{}}
+{"objective":["Find Howin Kindfeather east of Menethil Harbor, along the road."],"needs":[],"same":null,"start":["Captain Stoutfist",1437,9.9,57.5],"end":["Howin Kindfeather",1437,49.4,42.1],"chain":[468,455,473,464,465,474,98230],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":240},"rewardsFrom":"game","spots":{}}

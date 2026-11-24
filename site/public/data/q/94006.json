@@ -1,1 +1,1 @@
-{"objective":["Speak with Urs'endris near the falls northeast of Valanaar."],"needs":[],"same":null,"start":["Lotheluum Starbreeze",2521,64,75.1],"end":["Urs'endris",2521,69.8,61.7],"chain":[94006,94638],"spots":{}}
+{"objective":["Speak with Urs'endris near the falls northeast of Valanaar."],"needs":[],"same":null,"start":["Lotheluum Starbreeze",2521,64,75.1],"end":["Urs'endris",2521,69.8,61.7],"chain":[94006,94638],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{}}

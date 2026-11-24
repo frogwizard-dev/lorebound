@@ -1,1 +1,1 @@
-{"objective":["Observe Orthas as he moves on from this world."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[84330,84414,84332],"spots":{}}
+{"objective":["Observe Orthas as he moves on from this world."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[84330,84414,84332],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":3200},"rewardsFrom":"game","spots":{}}

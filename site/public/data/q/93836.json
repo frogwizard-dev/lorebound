@@ -1,1 +1,1 @@
-{"objective":["Speak with Talaanis Shadowsong in Valanaar."],"needs":[],"same":null,"start":["Ayessa Dawnsinger",2521,59.1,79.8],"end":["Talaanis Shadowsong",2521,66.2,76.5],"chain":[92646,93836,93090,95349],"spots":{"2521":[[66.2,76.5]]}}
+{"objective":["Speak with Talaanis Shadowsong in Valanaar."],"needs":[],"same":null,"start":["Ayessa Dawnsinger",2521,59.1,79.8],"end":["Talaanis Shadowsong",2521,66.2,76.5],"chain":[92646,93836,93090,95349],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{"2521":[[66.2,76.5]]}}

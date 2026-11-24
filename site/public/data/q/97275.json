@@ -1,1 +1,1 @@
-{"objective":["Give Yelmak's Potion to Whuut."],"needs":[],"same":null,"start":["Yelmak",1454,56.8,33],"end":["Whuut",1454,55.8,32.9],"chain":[97242,97275],"spots":{}}
+{"objective":["Give Yelmak's Potion to Whuut."],"needs":[],"same":null,"start":["Yelmak",1454,56.8,33],"end":["Whuut",1454,55.8,32.9],"chain":[97242,97275],"rewards":{"choose":[[3385,2,"Lesser Mana Potion",1,"inv_potion_71"],[929,2,"Healing Potion",1,"inv_potion_51"]],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{}}

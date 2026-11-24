@@ -1,1 +1,1 @@
-{"objective":["Deliver Chogg's head to the ogre city to the north."],"needs":[],"same":null,"start":["Tran'gul",2548,59.5,44],"end":["Clugfist",2548,64.2,15.7],"chain":[95417,95601,95427,95418,95420],"spots":{}}
+{"objective":["Deliver Chogg's head to the ogre city to the north."],"needs":[],"same":null,"start":["Tran'gul",2548,59.5,44],"end":["Clugfist",2548,64.2,15.7],"chain":[95417,95601,95427,95418,95420],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":320},"rewardsFrom":"game","spots":{}}

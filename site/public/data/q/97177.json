@@ -1,1 +1,1 @@
-{"objective":["Return the Exorcism Censer to Danitha Morr at Bandarion Keep in Tirisfal Glades."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[97177,97176,97182],"spots":{}}
+{"objective":["Return the Exorcism Censer to Danitha Morr at Bandarion Keep in Tirisfal Glades."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[97177,97176,97182],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":650},"rewardsFrom":"game","spots":{}}

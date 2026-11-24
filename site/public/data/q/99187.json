@@ -1,1 +1,1 @@
-{"objective":["Travel to Blackmaw Hold in Kalimdor, and recover the Reliquary of Tyr."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[],"spots":{}}
+{"objective":["Travel to Blackmaw Hold in Kalimdor, and recover the Reliquary of Tyr."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[],"rewards":{"choose":[[286408,1,null,null,"inv_sword_25"]],"items":[],"rep":[],"money":0,"spell":0,"xp":13550},"rewardsFrom":"game","spots":{}}

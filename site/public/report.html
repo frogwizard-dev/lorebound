@@ -22,8 +22,8 @@
 </header>
 <main class="form">
   <h1>Report a quest</h1>
-  <p class="lead">Met quests Lorebound doesn't know, or read quests whose Forever text it hasn't got? The journal notes
-    them as you play. Send them here and they join the quest list for everyone.</p>
+  <p class="lead">Met quests Lorebound doesn't know, or read quests whose Forever text or rewards it hasn't got? The
+    journal notes them as you play. Send them here and they join the quest list for everyone.</p>
   <ol>
     <li>In game, open the journal (<code>/lb</code>) and press <b>Share quests</b> on the overview.</li>
     <li>Copy the code with Ctrl+C and paste it below.</li>
@@ -36,7 +36,7 @@
   </form>
   <div class="say" id="status" role="status"></div>
   <p class="muted">Only the quest lines are sent: the quest, its zone and level, who gives it and takes it in, and the
-    quest text you read (your character's name is left out). Each report becomes a public issue on GitHub, read before
+    quest text and rewards you read (your character's name is left out). Each report becomes a public issue on GitHub, read before
     anything from it is added; every quest is also checked against the game's own quest list and Wowhead.</p>
 </main>
 <script>
@@ -47,7 +47,7 @@
   const say = (text, kind) => { status.textContent = text; status.className = 'say ' + (kind || '') }
   const errors = {
     no_code: 'Paste the code from the Share quests box first.',
-    no_report_lines: "That isn't Lorebound's report code: its lines start with LM1^ or LT1^.",
+    no_report_lines: "That isn't Lorebound's report code: its lines start with LM1^, LT1^ or LR1^.",
     too_long: 'That report is too long for one go. Send half, then the rest.',
     rate_limited: "That's plenty of reports from here today, thank you. Try again tomorrow.",
     rate_limited_cooldown: 'Sent a moment ago. Wait a few seconds, then send again.',
@@ -56,7 +56,7 @@
   }
   form.addEventListener('submit', async (event) => {
     event.preventDefault()
-    if (!/^LM1\^|^LT1\^/m.test(code.value)) { say(errors.no_report_lines, 'bad'); return }
+    if (!/^LM1\^|^LT1\^|^LR1\^/m.test(code.value)) { say(errors.no_report_lines, 'bad'); return }
     send.disabled = true
     say('Sending...')
     try {

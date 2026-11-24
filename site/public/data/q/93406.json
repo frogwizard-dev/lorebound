@@ -1,0 +1,1 @@
+{"objective":["Find 4 pieces of Missing Mail in the hills north of Everlook and bring it back to Innkeeper Vizzie."],"needs":[],"same":null,"start":["Innkeeper Vizzie",1452,61.4,38.8],"end":["Innkeeper Vizzie",1452,61.4,38.8],"chain":[93197,93406,93269],"rewards":{"choose":[],"items":[],"rep":[],"money":10875,"spell":0,"xp":4350},"rewardsFrom":"game","spots":{}}

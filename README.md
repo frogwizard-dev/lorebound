@@ -17,7 +17,7 @@ WoW Forever, with a site at [lb.frogwizard.net](https://lb.frogwizard.net) and o
   `make_lore_site_art.py` the site's art; `bump_version.py` the weekly version bump; `check_lore.py` proves a
   change to Lore.lua changes no quest's status it shouldn't (against the committed one).
 - `sources/`: the quest addons' data the list starts from (Zquest's QuestieDB export, GPL-3.0; Quest Completist;
-  Questie's blacklist; ForeverDungeonJournal's dungeon list). `tools/refresh_sources.py` copies newer versions in.
+  Questie's blacklist; ForeverDungeonJournal's dungeon list; OneForAll's gear rewards, GPL-3.0). `tools/refresh_sources.py` copies newer versions in.
 - `site/`: lb.frogwizard.net, a Cloudflare Pages project (`site/README.md`).
 
 ## Releases

@@ -1,1 +1,1 @@
-{"objective":["Speak with the Strange Hermit in the Shadowgale Forest and learn more about him."],"needs":[],"same":null,"start":["Strange Hermit",2521,54,38.9],"end":["Strange Hermit",2521,54,38.9],"chain":[],"spots":{"2521":[[54,38.9]]}}
+{"objective":["Speak with the Strange Hermit in the Shadowgale Forest and learn more about him."],"needs":[],"same":null,"start":["Strange Hermit",2521,54,38.9],"end":["Strange Hermit",2521,54,38.9],"chain":[],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{"2521":[[54,38.9]]}}

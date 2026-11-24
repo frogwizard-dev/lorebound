@@ -1,1 +1,1 @@
-{"objective":["Read the Tainted Tablet and speak to Nartok inside the Den in the Valley of Trials."],"needs":[],"same":null,"start":["Gornek",1411,42.1,68.3],"end":["Nartok",1411,40.6,68.5],"chain":[],"spots":{}}
+{"objective":["Read the Tainted Tablet and speak to Nartok inside the Den in the Valley of Trials."],"needs":[],"same":null,"start":["Gornek",1411,42.1,68.3],"end":["Nartok",1411,40.6,68.5],"chain":[],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{}}

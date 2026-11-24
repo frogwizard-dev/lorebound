@@ -1,1 +1,1 @@
-{"objective":["Speak to Lieutenant Farren Orinelle in Southshore in Hillsbrad Foothills."],"needs":[],"same":null,"start":["Lord Grayson Shadowbreaker",1453,48.4,50.2],"end":["Lieutenant Farren Orinelle",1424,51.5,58.4],"chain":[],"spots":{}}
+{"objective":["Speak to Lieutenant Farren Orinelle in Southshore in Hillsbrad Foothills."],"needs":[],"same":null,"start":["Lord Grayson Shadowbreaker",1453,48.4,50.2],"end":["Lieutenant Farren Orinelle",1424,51.5,58.4],"chain":[],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":250},"rewardsFrom":"game","spots":{}}

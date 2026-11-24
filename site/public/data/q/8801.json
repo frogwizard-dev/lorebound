@@ -1,1 +1,1 @@
-{"objective":["Take the Eye of C'Thun to Caelestrasz in the Temple of Ahn'Qiraj."],"needs":[],"same":false,"start":["Eye of C'Thun",null,null,null],"end":["Caelestrasz",null,null,null],"chain":[8801,8802],"spots":{}}
+{"objective":["Take the Eye of C'Thun to Caelestrasz in the Temple of Ahn'Qiraj."],"needs":[],"same":false,"start":["Eye of C'Thun",null,null,null],"end":["Caelestrasz",null,null,null],"chain":[8801,8802],"rewards":{"choose":[],"items":[],"rep":[],"money":29850,"spell":0,"xp":9950},"rewardsFrom":"game","spots":{}}

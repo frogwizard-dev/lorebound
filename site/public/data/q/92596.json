@@ -1,1 +1,1 @@
-{"objective":["Have a seat and speak with Rathiril Sunlance."],"needs":[],"same":null,"start":["Rathiril Sunlance",2521,45,46.4],"end":["Rathiril Sunlance",2521,45,46.4],"chain":[92596,94413],"spots":{"2521":[[45,46.4]]}}
+{"objective":["Have a seat and speak with Rathiril Sunlance."],"needs":[],"same":null,"start":["Rathiril Sunlance",2521,45,46.4],"end":["Rathiril Sunlance",2521,45,46.4],"chain":[92596,94413],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{"2521":[[45,46.4]]}}

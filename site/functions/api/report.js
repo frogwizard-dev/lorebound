@@ -7,8 +7,9 @@
 // reads it into `tools/lore_reports`.
 //
 // Only Lorebound's own lines get through: the issue's body is rebuilt from the valid `LM1^...` lines (a quest
-// met in game: 15 fields, a numeric quest ID) and `LT1^id^field^text` lines (a quest's Forever text: field d, o, c
-// or p), none with backticks, inside a code block, so nothing else a visitor types reaches a public issue.
+// met in game: 15 fields, a numeric quest ID), `LT1^id^field^text` lines (a quest's Forever text: field d, o, c
+// or p) and `LR1^id^choose^receive^money` lines (its rewards: numbers only), none with backticks, inside a code
+// block, so nothing else a visitor types reaches a public issue.
 //
 // POST /api/report   { code: string, honeypot: string }
 //   201 { url, number }   400 { error }   403 origin   429 rate limited   502/503 GitHub or config
@@ -26,6 +27,7 @@ const MAX_LINES = 300
 const MAX_LINE = 400
 const MAX_TEXT_LINE = 4000 // a quest's text (Share.lua keeps its lines under this)
 const QUEST_ID = /^[1-9]\d{0,6}$/ // no leading zeros, so one quest can't pass as two
+const REWARD_ITEMS = /^([1-9]\d{0,6}:[1-9]\d{0,3}(,[1-9]\d{0,6}:[1-9]\d{0,3}){0,9})?$/ // item:count, up to ten
 // Control characters and the line breaks other readers split on (U+2028 and the like): a line could hide another.
 const HIDDEN_BREAKS = /[\u0000-\u0008\u000b-\u001f\u007f\u0085\u2028\u2029]/
 const ALLOWED = { perDay: 10, cooldownMs: 10 * 1000 } // reports from one address
@@ -48,6 +50,12 @@ function cleanLines(code) {
       if (parts.length !== 15 || !QUEST_ID.test(parts[1]) || seen.has(parts[1])) continue
       seen.add(parts[1])
       lines.push(line)
+    } else if (line.startsWith('LR1^') && line.length <= MAX_LINE) {
+      const key = 'R' + parts[1]
+      if (parts.length !== 5 || !QUEST_ID.test(parts[1]) || !REWARD_ITEMS.test(parts[2]) || !REWARD_ITEMS.test(parts[3]) ||
+        !/^\d{1,9}$/.test(parts[4]) || textSeen.has(key)) continue
+      textSeen.add(key)
+      texts.push(line)
     } else if (line.startsWith('LT1^') && line.length <= MAX_TEXT_LINE) {
       const key = parts[1] + parts[2]
       if (parts.length !== 4 || !QUEST_ID.test(parts[1]) || !/^[docp]$/.test(parts[2]) || !parts[3].trim() || textSeen.has(key)) continue
@@ -85,13 +93,13 @@ export async function onRequestPost({ request, env }) {
   const names = lines.slice(0, 3).map((line) => line.split('^')[2]).join(', ')
   const about = [
     lines.length ? `${plural(lines.length, 'quest')} (${names}${lines.length > 3 ? ', ...' : ''})` : '',
-    textIds.length ? `text for ${plural(textIds.length, 'quest')}` : '',
+    textIds.length ? `text or rewards for ${plural(textIds.length, 'quest')}` : '',
   ].filter(Boolean).join(', ')
   const title = `Quest report: ${about}`
   const body = [
     `Client ${client || 'unknown'}.`,
     lines.length ? `Quests met: ${ids.join(', ')}` : '',
-    textIds.length ? `Text for: ${textIds.join(', ')}` : '',
+    textIds.length ? `Text or rewards for: ${textIds.join(', ')}` : '',
     '',
     '```',
     ...lines,

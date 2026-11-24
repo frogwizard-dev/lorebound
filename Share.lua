@@ -8,6 +8,7 @@ local _, ns = ...
 --
 --   LM1^id^name^zone^level^sides^giverID^giverName^mapID^x^y^enderID^enderName^before^classID
 --   LT1^id^field^text
+--   LR1^id^choose^receive^money        (choose and receive as item:count,item:count; money in copper)
 --
 -- sides: 1 Alliance, 2 Horde, 3 both have met it; giver/ender IDs are NPC (or object, as "o123") IDs;
 -- x, y in percent on mapID where the quest was offered; before: the quest last turned in at the same
@@ -30,6 +31,8 @@ local ENGLISH = { enUS = true, enGB = true } -- the list's text is English: othe
 local TEXT_FIELDS = { { "d", 1 }, { "o", 2 }, { "c", 3 }, { "p", 4 } } -- the code's letter, ns.db.text's index
 
 local panel
+
+local MAX_ITEMS = 10    -- items a reward list holds (the report page takes 10)
 
 local function NewQuest(id)
     return ns.db.learned[id] and not ns.db.shared[id] and not ns.Lore.IsLeftOut(id)
@@ -57,6 +60,24 @@ local function NewText(id)
     return fields ~= "" and fields or nil
 end
 
+-- A quest's rewards worth sharing and not shared yet (Core.lua kept them from its quest window or your log).
+local function NewRewards(id)
+    local found = ns.db.rewards[id]
+    return found and not ns.db.rewardsShared[id] and ns.Lore.WantsRewards(id) and not found.cap and not found.part
+        and (#found.ch > 0 or #found.it > 0 or (found.m or 0) > 0) or false -- experience alone isn't shared, nor
+        -- what was read at the level cap (its money unknown: the game pays the experience as gold there), nor the
+        -- server's answer for a quest not in your log (its choices unknown)
+end
+
+local function Items(list)
+    local parts = {}
+    for i, entry in ipairs(list or {}) do
+        if i > MAX_ITEMS then break end
+        parts[#parts + 1] = ("%d:%d"):format(entry[1], math.max(1, math.min(9999, entry[2] or 1)))
+    end
+    return table.concat(parts, ",")
+end
+
 -- Quests with something to share (met in game, or their text), in ID order: worked out again only after a quest
 -- window or a share (the journal asks on every draw).
 local pending
@@ -70,6 +91,9 @@ function Share.Pending()
     for id in pairs(ns.db.text) do
         if NewText(id) then seen[id] = true end
     end
+    for id in pairs(ns.db.rewards) do
+        if NewRewards(id) then seen[id] = true end
+    end
     for id in pairs(seen) do list[#list + 1] = id end
     table.sort(list)
     pending = list
@@ -82,6 +106,7 @@ local function Leftover(held)
     for _, id in ipairs(held.quests) do heldQuest[id] = true end
     for _, id in ipairs(Share.Pending()) do
         if NewQuest(id) and not heldQuest[id] then return true end
+        if NewRewards(id) and not held.rewards[id] then return true end
         local fields = NewText(id)
         if fields and #fields > #(held.text[id] or "") then return true end
     end
@@ -92,7 +117,7 @@ end
 -- quests with anything in it }) for marking as shared; what didn't fit waits for the next one.
 function Share.Code()
     local function Plain(value) return (ns.Plain(value):sub(1, MAX_FIELD)) end
-    local lines, held, size = {}, { quests = {}, text = {}, count = 0 }, 0
+    local lines, held, size = {}, { quests = {}, text = {}, rewards = {}, count = 0 }, 0
     local function Add(line)
         if size + #line + 1 > MAX_CODE or #lines >= MAX_LINES then return false end
         lines[#lines + 1] = line
@@ -119,7 +144,13 @@ function Share.Code()
             end
         end
         if sent ~= "" then held.text[id] = sent end
-        if sent ~= "" or #held.quests > before then held.count = held.count + 1 end
+        local gave = false
+        if NewRewards(id) then
+            local found = ns.db.rewards[id]
+            gave = Add(("LR1^%d^%s^%s^%d"):format(id, Items(found.ch), Items(found.it), math.max(0, math.floor(found.m or 0))))
+            if gave then held.rewards[id] = true end
+        end
+        if sent ~= "" or gave or #held.quests > before then held.count = held.count + 1 end
         if size >= MAX_CODE - 200 or #lines >= MAX_LINES then break end
     end
     return table.concat(lines, "\n"), held
@@ -247,6 +278,11 @@ function Share.Open()
         parts[#parts + 1] = ("the Forever text of %d quest%s it only has Classic's text for, or none"):format(texts,
             texts == 1 and "" or "s")
     end
+    local rewards = 0
+    for _ in pairs(held.rewards) do rewards = rewards + 1 end
+    if rewards > 0 then
+        parts[#parts + 1] = ("the rewards of %d quest%s it hasn't got them for"):format(rewards, rewards == 1 and "" or "s")
+    end
     local more = Leftover(held) and " There's more after this: share again once it's marked." or ""
     Share.ShowCode({
         title = "Share quests",
@@ -256,6 +292,7 @@ function Share.Open()
         onDone = function()
             for _, id in ipairs(held.quests) do ns.db.shared[id] = true end -- what the code held, no more
             for id, fields in pairs(held.text) do ns.db.textShared[id] = (ns.db.textShared[id] or "") .. fields end
+            for id in pairs(held.rewards) do ns.db.rewardsShared[id] = true end
             ns.shareStale = true
             ns.Journal:Refresh()
         end,

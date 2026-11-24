@@ -1,1 +1,1 @@
-{"objective":["Deliver 10 Heavy Weightstones to Hamur in Bolder'ok."],"needs":[["Heavy Weightstone",10]],"same":null,"start":["Hamur",2548,67.2,21.8],"end":["Hamur",2548,67.2,21.8],"chain":[95183,96026],"spots":{}}
+{"objective":["Deliver 10 Heavy Weightstones to Hamur in Bolder'ok."],"needs":[["Heavy Weightstone",10]],"same":null,"start":["Hamur",2548,67.2,21.8],"end":["Hamur",2548,67.2,21.8],"chain":[95183,96026],"rewards":{"choose":[],"items":[[251460,1,"Plans: Mithril Warhammer",2,"inv_scroll_03"]],"rep":[],"money":0,"spell":0,"xp":2450},"rewardsFrom":"game","spots":{}}

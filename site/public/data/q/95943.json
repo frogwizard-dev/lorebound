@@ -1,1 +1,1 @@
-{"objective":["Locate the Foreman's Crate and return it to Bertrand Ironbrow in Farholde Keep."],"needs":[],"same":null,"start":["Bertrand Ironbrow",2548,63.4,80.6],"end":["Bertrand Ironbrow",2548,63.4,80.6],"chain":[95943,96009],"spots":{}}
+{"objective":["Locate the Foreman's Crate and return it to Bertrand Ironbrow in Farholde Keep."],"needs":[],"same":null,"start":["Bertrand Ironbrow",2548,63.4,80.6],"end":["Bertrand Ironbrow",2548,63.4,80.6],"chain":[95943,96009],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":2150},"rewardsFrom":"game","spots":{}}

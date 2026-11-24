@@ -1,1 +1,1 @@
-{"objective":["Speak to Isaac Chan in Goldshire."],"needs":[],"same":null,"start":["Josephine Carson",1429,41.1,66.2],"end":["Isaac Chan",1429,41.8,66.4],"chain":[94792,94863,94864,94793],"spots":{}}
+{"objective":["Speak to Isaac Chan in Goldshire."],"needs":[],"same":null,"start":["Josephine Carson",1429,41.1,66.2],"end":["Isaac Chan",1429,41.8,66.4],"chain":[94792,94863,94864,94793],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{}}

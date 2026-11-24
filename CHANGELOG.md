@@ -1,5 +1,29 @@
 # Lorebound
 
+## 0.3.5
+
+- **A click opens the quest page**: clicking a quest in the journal (or A on a controller) opens its page straight away;
+  the page now also says what the quest needs first and what it leads to.
+- **203 more quests**: quests the quest data gives no zone at all, Forever's newest among them, were left out; they're
+  now filed where their quest giver stands. Mount Hyjal gains 103, Shen'dralas 20 and Riverglades 17.
+- **Rewards and notes from ForeverDungeonJournal**: its dungeon quests show Forever's own rewards (items, money,
+  reputation, experience), its notes, and where each is picked up and handed in.
+- **Gear rewards from OneForAll**: where nothing else says, a quest's page shows the gear OneForAll knows it gives
+  ("Rewards include").
+- **Needs first** on the quest page lists only the quests you can have, each once.
+- **Rewards from Forever's own servers**: every quest's rewards were asked of the game itself, so 4,689 quests now
+  show exactly what Forever gives: the choices (705 quests have them), the items you receive with their counts,
+  money and experience, Forever's new items among them (Hogger now also offers an Apprentice Wizard's Gown; The
+  Tempest's Weapons offers Lightning's Grasp, Tidebringer's Claw or Rage of the Storm, with an Elementalist's Guard).
+  Opening the journal also reads your quest log's rewards, choices and all, and Share quests sends any Lorebound
+  hasn't got.
+- **Asking as you go**: a quest page whose rewards still aren't known asks the game straight away, and so do the
+  quests of the zone you're looking at (one at a time, never in combat).
+- **Chains as your character sees them**: a chain that starts with another race's version of a quest (Call of Air
+  from Orgrimmar, for a Tauren) now starts with your own version (Thunder Bluff's) instead, and steps you can't
+  have are left out, on the quest page's chain list and the journal's storylines alike. Steps are numbered as you
+  see them, so the counts and dots add up.
+
 ## 0.3.4
 
 - Quest list update: 0 quests added, 1 removed (4690 in all).

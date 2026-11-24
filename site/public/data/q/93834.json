@@ -1,1 +1,1 @@
-{"objective":["Gather 10 Burrow Beetle Bits for Dala Fairmaw."],"needs":[["Burrow Beetle Bits",10]],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[],"spots":{}}
+{"objective":["Gather 10 Burrow Beetle Bits for Dala Fairmaw."],"needs":[["Burrow Beetle Bits",10]],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[],"rewards":{"choose":[],"items":[[18253,2,"Major Rejuvenation Potion",1,"inv_potion_47"]],"rep":[],"money":0,"spell":0,"xp":3000},"rewardsFrom":"game","spots":{}}

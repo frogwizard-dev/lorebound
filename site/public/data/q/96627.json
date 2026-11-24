@@ -1,1 +1,1 @@
-{"objective":["Speak to Sam Sarsparilla near Goldshire."],"needs":[],"same":null,"start":["Marshal McBride",1429,48.9,41.6],"end":["Sam Sarsaparilla",1429,44.9,63.4],"chain":[96627,95998],"spots":{}}
+{"objective":["Speak to Sam Sarsparilla near Goldshire."],"needs":[],"same":null,"start":["Marshal McBride",1429,48.9,41.6],"end":["Sam Sarsaparilla",1429,44.9,63.4],"chain":[96627,95998],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{}}

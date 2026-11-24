@@ -14,3 +14,5 @@ tools/lore_sources/wowhead.log
 # The site's own tooling
 site/node_modules/
 site/.wrangler/
+# Written by tools/harvest/make_harvest.py each time it installs the harvest add-on
+tools/harvest/LoreboundHarvest/Quests.lua

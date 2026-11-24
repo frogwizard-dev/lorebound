@@ -1,5 +1,5 @@
 """Copies the quest addons' data files Lorebound builds from into the repository's sources/ folder, from this PC's
-AddOns folder (run it after Zquest, Quest Completist or ForeverDungeonJournal update, then commit the change; the
+AddOns folder (run it after Zquest, Quest Completist, ForeverDungeonJournal or OneForAll update, then commit the change; the
 weekly update on GitHub builds from these copies). Questie's blacklist is also fetched fresh on GitHub each week.
 
     python tools/refresh_sources.py
@@ -17,6 +17,9 @@ COPIES = [
     ("QuestCompletist/Forever/qcQuestData.lua", "QuestCompletist/qcQuestData.lua"),
     ("Questie/Database/Corrections/QuestieQuestBlacklist.lua", "Questie/QuestieQuestBlacklist.lua"),
     ("ForeverDungeonJournal/Data/Dungeons.lua", "ForeverDungeonJournal/Dungeons.lua"),
+    ("OneForAll/Data/QuestRewards.lua", "OneForAll/QuestRewards.lua"),  # GPL-3: the gear rewards, by quest
+    ("OneForAll/LICENSE.txt", "OneForAll/LICENSE.txt"),
+    ("OneForAll/THIRD_PARTY_LICENSES.txt", "OneForAll/THIRD_PARTY_LICENSES.txt"),
 ]
 
 

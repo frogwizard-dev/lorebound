@@ -28,7 +28,8 @@ Sources (the addons' files are copied into sources/ by refresh_sources.py; the w
   game's own quest list and its name matches Wowhead's (Forever section, through the tooltip endpoint
   its embed script uses; answers cached in lore_reports/.verified.json); the rest go to
   lore_reports/needs-a-look.txt with the reason. LT1 lines carry a quest's Forever text as players read
-  it (lore_pages.py puts it on the quest's page where Classic's text doesn't apply).
+  it, and LR1 lines its rewards as the game showed them (lore_pages.py puts both on the quest's page where
+  Classic's don't apply). ForeverDungeonJournal's rewards fill its dungeon quests' pages the same way.
 - The game's files (game_files.py: this PC's client, else wago.tools's copy of Forever's newest build):
   the dungeon journal's art (interface/encounterjournal/ui-ej-background-*, named in the listfile) for each
   dungeon's and raid's badge, row and page; the WorldMapOverlay tables, so the journal shows each zone's map
@@ -66,6 +67,8 @@ ZQUEST = os.path.join(ADDON_SOURCES, "Zquest", "Data")
 COMPLETIST = os.path.join(ADDON_SOURCES, "QuestCompletist", "qcQuestData.lua")
 BLACKLIST = os.path.join(ADDON_SOURCES, "Questie", "QuestieQuestBlacklist.lua")
 JOURNAL = os.path.join(ADDON_SOURCES, "ForeverDungeonJournal", "Dungeons.lua")
+ONE_FOR_ALL = os.path.join(ADDON_SOURCES, "OneForAll", "QuestRewards.lua")  # GPL-3: gear rewards by quest
+GAME_REWARDS = os.path.join(ADDON_SOURCES, "Game", "rewards.json")  # the game server's own answers (tools/harvest)
 REPORTS = os.path.join(HERE, "lore_reports")
 REPORT_REPO = "frogwizard-dev/loremaster-reports"  # where lb.frogwizard.net files reports (site/)
 APPROVED = "approved"  # the label you add to a report issue once you've read it and it's right
@@ -333,6 +336,60 @@ TEXT_FIELDS = {"d": "description", "o": "objective", "c": "completion", "p": "pr
 QUEST_ID = re.compile(r"[1-9][0-9]{0,6}")  # ASCII digits only ("²".isdigit() is True)
 
 
+REWARD_ITEMS = re.compile(r"([1-9][0-9]{0,6}:[1-9][0-9]{0,3}(,[1-9][0-9]{0,6}:[1-9][0-9]{0,3}){0,9})?")
+
+
+def gear_rewards():
+    """OneForAll's gear rewards by quest ({ quest: [(item, name)] }): only the gear a quest can give, not whether it's
+    a choice or what else comes with it, so it's used only where nothing better is known."""
+    found = {}
+    if not os.path.exists(ONE_FOR_ALL):
+        return found
+    for line in open(ONE_FOR_ALL, encoding="utf-8"):
+        match = re.fullmatch(r"([0-9]+),[0-9]+,([0-9/]+),(.+)", line.strip())
+        if match:
+            for qid in match.group(2).split("/"):
+                found.setdefault(int(qid), []).append((int(match.group(1)), match.group(3)))
+    return found
+
+
+def journal_extras(quest):
+    """What ForeverDungeonJournal says of a quest beyond the list: its rewards (items, either-or when rewardChoice;
+    money, reputation by faction name and XP read from its reward text and summary), its note, and where it's picked
+    up and handed in, described ("inside the dungeon, near the sewer entrance")."""
+    def listed(found):  # { { item, name, quality, count }, ... } as (item, name, quality, count)
+        return [(found[i][1], found[i][2], found[i][3], found[i][4] or 1) for i in range(1, (len(found) if found else 0) + 1)
+                if found[i] and isinstance(found[i][1], int)]
+    items, extra = listed(quest.rewardItems), listed(quest.additionalRewardItems)
+    money, xp, rep = 0, 0, {}
+    for line in "\n".join(text for text in (quest.rewards, quest.rewardSummary) if text).split("\n"):
+        for piece in (part.strip() for part in line.split("\u2022")):
+            if re.fullmatch(r"[0-9,]+ XP", piece):
+                xp = int(piece[:-3].replace(",", ""))
+            elif re.fullmatch(r"([0-9]+g)? ?([0-9]+s)? ?([0-9]+c)?", piece) and piece:
+                coins = dict((unit, int(amount)) for amount, unit in re.findall(r"([0-9]+)([gsc])", piece))
+                money = coins.get("g", 0) * 10000 + coins.get("s", 0) * 100 + coins.get("c", 0)
+            else:
+                match = re.fullmatch(r"(.+?) \+([0-9]+)", piece)
+                if match and not piece.startswith(("Choose:", "Also:")):
+                    rep[match.group(1)] = int(match.group(2))
+    return {"choice": bool(quest.rewardChoice), "items": items, "extra": extra, "money": money, "xp": xp,
+            "rep": [[name, value] for name, value in rep.items()], "note": quest.note or None,
+            "pickup": quest.pickup or None, "turnin": quest.turnin or None}
+
+
+def reward_line(parts):
+    """An LR1 line's rewards ("LR1^quest^choose^items^money", choose and items as item:count,item:count), or None
+    when it doesn't read or holds nothing."""
+    _, _, choose, items, money = parts
+    if not (REWARD_ITEMS.fullmatch(choose) and REWARD_ITEMS.fullmatch(items) and re.fullmatch(r"[0-9]{0,9}", money)):
+        return None
+    def read(text):
+        return [[int(item), int(count)] for item, count in (pair.split(":") for pair in text.split(",") if pair)]
+    found = {"choose": read(choose), "items": read(items), "money": int(money or 0)}
+    return found if found["choose"] or found["items"] or found["money"] else None
+
+
 def report_order(name):
     """Report files oldest first (issue-9 before issue-10), so a later report's text wins."""
     number = "".join(ch for ch in name if ch.isdigit())
@@ -387,8 +444,9 @@ def write_text(pages, part_of):
     (Core.lua's ns.QuestText), so only the strings stay in memory. The page: { o = Forever's objective,
     n = { { what, count } }, d, p, c = description, progress and completion text (Classic's, only where Forever's
     objective matches Classic's or isn't checked yet; k is true once checked; s is true when it's players' text from
-    Forever instead), r = { ch = choose one, it = receive
-    ({ item, count, name, quality, icon }), m = money, rep = { { faction, value } }, sp = a spell } }."""
+    Forever instead), nt = a note, ws and we = where it's picked up and handed in (ForeverDungeonJournal's), r = {
+    xp, so = some of them (gear only, choice or not unknown), ch = choose one, it = receive
+    ({ item, count, name, quality, icon }), m = money, rep = { { faction ID or name, value } }, sp = a spell } }."""
     def text(paragraphs):
         return BLANK_LINE.join(paragraphs) if paragraphs else None
     parts = {name: [] for name in list(TEXT_PARTS.values()) + [TEXT_REST]}
@@ -406,7 +464,12 @@ def write_text(pages, part_of):
         rewards = page.get("rewards")
         if rewards:
             entry["r"] = {k: v for k, v in (("ch", rewards["choose"]), ("it", rewards["items"]), ("m", rewards["money"]),
-                                             ("rep", rewards["rep"]), ("sp", rewards["spell"])) if v}
+                                             ("rep", rewards["rep"]), ("sp", rewards["spell"]), ("xp", rewards.get("xp")),
+                                             ("so", rewards.get("some")))
+                          if v}
+        for key, field in (("nt", "note"), ("ws", "pickup"), ("we", "turnin")):
+            if page.get(field):
+                entry[key] = page[field]
         if not entry:
             continue
         entry["k"] = page["same"] is True
@@ -687,6 +750,18 @@ def build():
         upper = (name or "").upper()
         return not name or name.startswith(("[", "<")) or "UNUSED" in upper or "DEPRECATED" in upper
 
+    # A map's zone, for quests the export gives no zone (Forever's newest, like Smuggler's Paradise): the area that
+    # map shows, as the quest list files its other quests.
+    map_area = {}
+    for area, ui in zones.area_to_map.items():
+        if ui not in map_area or zones.top(area) == area:
+            map_area[ui] = area
+
+    def zone_of_map(ui):
+        area = map_area.get(ui)
+        return zones.of(area) if area else None
+
+    placed_by_giver = 0
     for qid, quest in quests.items():
         if qid not in client:
             dropped["not on Forever"] += 1
@@ -702,6 +777,9 @@ def build():
             skip.add(qid)
             continue
         zone = zones.of(quest[ZONE_OR_SORT])
+        if zone is None and not quest[ZONE_OR_SORT]:  # the export gives it no zone at all: where its giver stands
+            zone = zone_of_map(giver(quest[STARTED_BY])[3] or giver(quest[FINISHED_BY])[3])
+            placed_by_giver += zone is not None
         if zone is None:
             dropped["seasonal or no zone"] += 1
             skip.add(qid)
@@ -799,6 +877,7 @@ def build():
                 horde[qid][I["zone"] + 1] = target
             moved += 1
     print("dungeon quests moved from the zone outside to their dungeon", moved)
+    print("quests the export gives no zone, placed where their giver stands", placed_by_giver)
 
     # Quest Completist's quests that Zquest hasn't got.
     qc_db = completist.qcQuestDatabase
@@ -807,7 +886,18 @@ def build():
     unavailable = completist.qcUnavailableQuests or lua.eval("{}")
     added = 0
     for qid, entry in qc_db.items():
-        if qid in rows or quests[qid] is not None:
+        if qid in rows:
+            continue
+        if quests[qid] is not None:
+            # Zquest has it but couldn't place it (no zone, no giver): Completist's zone, with Zquest's links.
+            usable = (qid in client and unavailable[qid] is None and holiday[qid] is None and profession[qid] is None
+                      and entry[4] == 1)
+            zone = qid in unplaced and usable and zones.of(entry[3])
+            if zone:
+                rows[qid] = make_row(lambda field, zq=quests[qid]: zq[field], zone)
+                skip.discard(qid)
+                unplaced.discard(qid)
+                added += 1
             continue
         if qid not in client or unavailable[qid] is not None:
             dropped["not on Forever"] += 1
@@ -882,12 +972,15 @@ def build():
         return text or None
 
     journal_moved = journal_added = 0
+    journal_rewards = {}  # quest -> what ForeverDungeonJournal says of it beyond the list (journal_extras)
     for name, dungeon in sorted((journal or {}).items()):
         zone = journal_zone(name)
         listed = dungeon.quests
         for index in range(1, (len(listed) if listed else 0) + 1):
             listed_quest = listed[index]
             qid = listed_quest.id
+            if qid:
+                journal_rewards[qid] = journal_extras(listed_quest)
             if not qid or (qid in skip and qid not in unplaced):
                 continue
             if qid in unplaced and qid not in rows:
@@ -926,6 +1019,7 @@ def build():
         zone_names.setdefault(zone_row[0], i)
     reports = {}  # quest -> its first report's fields, with the sides of every report
     shared_text = {}  # quest -> { field: its Forever text as players read it }, the latest report's
+    shared_rewards = {}  # quest -> { choose, items: [[item, count]], money } as the game showed them, the latest's
     for name in sorted(os.listdir(REPORTS), key=report_order) if os.path.isdir(REPORTS) else []:
         if not name.endswith(".txt"):
             continue
@@ -933,6 +1027,11 @@ def build():
             parts = line.strip().split("^", 3) if line.startswith("LT1^") else line.strip().split("^")
             if len(parts) == 4 and parts[0] == "LT1" and QUEST_ID.fullmatch(parts[1]) and parts[2] in TEXT_FIELDS and parts[3].strip():
                 shared_text.setdefault(int(parts[1]), {})[TEXT_FIELDS[parts[2]]] = parts[3].strip()
+                continue
+            if len(parts) == 5 and parts[0] == "LR1" and QUEST_ID.fullmatch(parts[1]):
+                found = reward_line(parts)
+                if found:
+                    shared_rewards[int(parts[1])] = found
                 continue
             if len(parts) < 15 or parts[0] != "LM1" or not QUEST_ID.fullmatch(parts[1]):
                 continue
@@ -983,6 +1082,7 @@ def build():
         reported += 1
     print("quests from players' reports", reported)
     shared_text = {qid: text for qid, text in shared_text.items() if qid in rows}
+    shared_rewards = {qid: found for qid, found in shared_rewards.items() if qid in rows}
     print("quests with players' text", len(shared_text))
     if doubtful:
         with open(os.path.join(REPORTS, "needs-a-look.txt"), "w", encoding="utf-8", newline="\n") as f:
@@ -1041,12 +1141,18 @@ def build():
     version = hashlib.sha1(json.dumps([sorted(rows), [z[0] for z in zone_rows]]).encode()).hexdigest()[:10]
     chain_of = lore_pages.chains(rows, I)
     write_site_data(version, rows, zone_rows, horde, chain_of)
-    pages = lore_pages.write(rows, extras, I, chain_of, shared_text)
+    game = json.load(open(GAME_REWARDS, encoding="utf-8")) if os.path.exists(GAME_REWARDS) else None
+    pages = lore_pages.write(rows, extras, I, chain_of, shared_text, journal_rewards, shared_rewards, gear_rewards(),
+                             game)
     write_text(pages, text_parts(rows, zone_rows, horde))
     # Quests whose Forever text isn't known: not Classic's (checked against Forever), and players' text hasn't given
     # both the description and the completion yet (what's missing is still asked for).
     want_text = sorted(qid for qid, page in pages.items() if page["same"] is not True and not (
         page.get("shared") and page["text"]["description"] and page["text"]["completion"]))
+    want_rewards = sorted(qid for qid, page in pages.items()
+                          if not page.get("rewards") or page.get("rewardsFrom") == "gear")  # gear alone: only part
+    want_choices = sorted(qid for qid, page in pages.items()
+                          if page.get("choicesUnknown") and qid not in set(want_rewards))
 
     lines = [
         "-- Generated by tools/make_lore.py from Zquest's QuestieDB export (GPL-3.0), Quest Completist's",
@@ -1056,6 +1162,9 @@ def build():
         "-- horde[id] = { [field] = value or false }: the Horde view's differences.",
         "-- skip = { id, ... }: quests left out on purpose (repeatable, seasonal, blacklisted), never learned.",
         "-- wantText = { id, ... }: quests whose Forever text isn't known yet (Share.lua asks players for it).",
+        "-- wantRewards = { id, ... }: quests whose rewards aren't known yet (likewise; Lorebound also asks the game).",
+        "-- wantChoices = { id, ... }: quests whose rewards are known but for any choice (the game tells those only",
+        "--   for quests in your log, so players' logs share them).",
         "-- reveal[uiMapArtID] = { { width, height, x, y, tile files row by row }, ... }: every sub-zone's overlay.",
         "LoreboundData = {",
         "version = " + lua_string(version) + ",",
@@ -1085,6 +1194,8 @@ def build():
     skip -= unplaced  # no zone anyone knows: learned (and reported) in game with the quest log's zone
     lines.append("skip = {" + ",".join(str(q) for q in sorted(skip)) + "},")
     lines.append("wantText = {" + ",".join(str(q) for q in want_text) + "},")
+    lines.append("wantRewards = {" + ",".join(str(q) for q in want_rewards) + "},")
+    lines.append("wantChoices = {" + ",".join(str(q) for q in want_choices) + "},")
     lines += ["}"]
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8", newline="\n") as f:

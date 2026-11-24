@@ -1,0 +1,1 @@
+{"objective":["Speak to Felflick."],"needs":[],"same":null,"start":["Felflick",2482,48.6,73.5],"end":["Curious Crow",2482,48.3,85.7],"chain":[96435,96255,96322],"rewards":{"choose":[[275837,1,"Felflick's Fire Flicker",2,"inv_wand_11"],[275838,1,"Dirtwalker Pendant",2,"inv_jewelry_necklace_09"]],"items":[],"rep":[],"money":0,"spell":0,"xp":7750},"rewardsFrom":"game","spots":{}}

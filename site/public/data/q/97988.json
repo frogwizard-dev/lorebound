@@ -1,1 +1,1 @@
-{"objective":["Speak with Corswyn Aseril in Orgrimmar's Valley of Wisdom."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[],"spots":{}}
+{"objective":["Speak with Corswyn Aseril in Orgrimmar's Valley of Wisdom."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[],"rewards":{"choose":[[281287,1,"Windshaper Pendant",2,"inv_jewelry_necklace_31"],[281288,1,"Shen'dorei Signet",2,"inv_jewelry_ring_33"]],"items":[],"rep":[],"money":0,"spell":0,"xp":6000},"rewardsFrom":"game","spots":{}}

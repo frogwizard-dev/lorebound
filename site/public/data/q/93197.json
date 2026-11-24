@@ -1,0 +1,1 @@
+{"objective":["Take mail parcels from Sebelia at the summit camp on Mount Hyjal to Innkeeper Vizzie in Everlook."],"needs":[],"same":null,"start":["Sebelia",2482,70.9,51.5],"end":["Innkeeper Vizzie",1452,61.4,38.8],"chain":[93197,93406,93269],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":3100},"rewardsFrom":"game","spots":{}}

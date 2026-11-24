@@ -1,1 +1,1 @@
-{"objective":["Speak with Gregory to begin the ritual."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[81885,82135],"spots":{}}
+{"objective":["Speak with Gregory to begin the ritual."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[81885,82135],"rewards":{"choose":[],"items":[],"rep":[],"money":13919,"spell":0,"xp":6550},"rewardsFrom":"game","spots":{}}

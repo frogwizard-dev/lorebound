@@ -1,0 +1,1 @@
+{"objective":["Speak with the peasant to let him know the job's done."],"needs":[],"same":null,"start":["Sefira Everbright",2482,15.7,54.7],"end":["Daythor Brellan",2482,15.6,52.1],"chain":[90750,95218,94832,96077],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":550},"rewardsFrom":"game","spots":{}}

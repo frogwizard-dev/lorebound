@@ -36,9 +36,7 @@ local lastPage = "overview" -- the page before a search
 local headerPage        -- the page the header's rings were last drawn for
 local searchText = ""
 local found = {}        -- the search's results
-local bodies = {}       -- [questID] = an opened quest's text, until the next redraw
 local searchTimer       -- the search waits for a pause in typing
-local expanded = {}     -- [questID] = true: opened in the list
 local events = CreateFrame("Frame")
 local refreshTimer           -- a coalesced refresh
 
@@ -439,33 +437,6 @@ local function NamesWithTicks(list)
     return table.concat(parts, ", ")
 end
 
--- The opened quest's text: objective, story, turn-in text, people and chain.
-local function Body(id)
-    if bodies[id] then return bodies[id] end
-    local row = Lore.Row(id)
-    local saved = ns.db.text[id]
-    local lines = {}
-    local objective = (saved and saved[2]) or Fill(row[F.objective])
-    if objective then lines[#lines + 1] = "|cffffd100Objective|r  " .. objective end
-    if saved and saved[1] then
-        lines[#lines + 1] = "|cffe8dcc0" .. saved[1] .. "|r"
-    else
-        lines[#lines + 1] = "|cff8a8a8aYou haven't read this one yet. Its story is kept here once you open it at the quest giver.|r"
-    end
-    if saved and saved[3] then lines[#lines + 1] = "|cffffd100On turning in|r  |cffe8dcc0" .. saved[3] .. "|r" end
-    local people = PeopleLine(row)
-    if people ~= "" then lines[#lines + 1] = people .. "." end
-    local needs = {}
-    for _, field in ipairs({ F.needsAll, F.needsAny }) do
-        for _, need in ipairs(row[field] or {}) do needs[#needs + 1] = need end
-    end
-    if #needs > 0 then lines[#lines + 1] = "|cffffd100Needs first|r  " .. NamesWithTicks(needs) end
-    if row[F.breadcrumbFor] then lines[#lines + 1] = "|cffffd100Leads to|r  " .. NamesWithTicks({ row[F.breadcrumbFor] }) end
-    if Lore.IsLearned(id) then lines[#lines + 1] = "|cff8a8a8aLearned in game: not in Lorebound's list.|r" end
-    bodies[id] = table.concat(lines, "\n\n")
-    return bodies[id]
-end
-
 local function Summary(id, state, why)
     if why then return why end
     local row = Lore.Row(id)
@@ -477,40 +448,12 @@ end
 
 -- Shared with the quest page (Quest.lua).
 Journal.SetStatusIcon, Journal.Summary, Journal.Fill, Journal.TITLE_FONT = SetStatusIcon, Summary, Fill, TITLE_FONT
+Journal.NamesWithTicks = NamesWithTicks
 
-local function BodyWidth()
-    return math.max(240, frame.questList:GetWidth() - 52)
-end
-
--- Height of an opened quest, from a hidden string set to the same width and text.
-local function ExpandedHeight(id)
-    local measure = frame.measure
-    measure:SetWidth(BodyWidth())
-    measure:SetText(Body(id))
-    return QUEST_H + measure:GetStringHeight() + 14 + 30 -- and its buttons: the quest page, the giver
-end
-
-function Journal:ToggleQuest(id)
-    expanded[id] = not expanded[id] or nil
-    self:FillQuests(true)
-end
-
-function Journal:IsExpanded(id)
-    return expanded[id] == true
-end
-
+-- A quest clicked in the list: its page.
 local function QuestRowClick(row)
     local id = row.data and row.data.id
-    if id then Journal:ToggleQuest(id) end
-end
-
-local function ShowGiverClick(button)
-    local id = button:GetParent().data.id
-    Journal:ShowMap(id)
-end
-
-local function QuestPageClick(button)
-    ns.QuestPage.Show(button:GetParent().data.id)
+    if id then ns.QuestPage.Show(id) end
 end
 
 -- A piece of the line joining a chain's steps: nil hides it, "done" is the green of a finished step.
@@ -575,24 +518,6 @@ local function InitQuestRow(row, data)
         row.line:SetPoint("TOPRIGHT", -10, -25)
         row.line:SetJustifyH("LEFT")
         row.line:SetWordWrap(false)
-        row.body = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.body:SetPoint("TOPLEFT", 40, -QUEST_H)
-        row.body:SetJustifyH("LEFT")
-        row.body:SetJustifyV("TOP")
-        row.body:SetSpacing(2)
-        row.giver = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        row.giver:SetSize(150, 22)
-        row.giver:SetText("Show quest giver")
-        row.giver:SetPoint("BOTTOMLEFT", 196, 6)
-        row.page = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        row.page:SetSize(150, 22)
-        row.page:SetText("Quest page")
-        row.page:SetPoint("BOTTOMLEFT", 38, 6)
-        row.page:SetScript("OnClick", QuestPageClick)
-        row.giver:SetScript("OnClick", ShowGiverClick)
-        row.back = row:CreateTexture(nil, "BACKGROUND")
-        row.back:SetAllPoints()
-        row.back:SetColorTexture(1, 1, 1, 0.04)
         row.parts = { row.icon, row.level, row.name, row.where, row.line }
         -- A chain's steps: a line through their icons, from the step before and on to the next.
         row.railTop = row:CreateTexture(nil, "BORDER")
@@ -619,7 +544,7 @@ local function InitQuestRow(row, data)
     if data.chainHead then -- a chain's heading: its name, a dot for each step, how many are done
         row.head:SetFontObject("GameFontHighlight")
         row.head:SetText(data.label)
-        local steps = Lore.ChainSteps(data.chainHead)
+        local steps = Lore.ChainFor(data.chainHead)
         local done = 0
         for i, id in ipairs(steps) do
             local state = Lore.StatusOf(id)
@@ -627,19 +552,11 @@ local function InitQuestRow(row, data)
             if i <= MAX_DOTS then ChainDot(row, i, state, Lore.IsPassed(id)) end
         end
         row.progress:SetText(("%d of %d done"):format(done, #steps))
-        row.body:Hide()
-        row.giver:Hide()
-        row.page:Hide()
-        row.back:Hide()
         return
     end
     if isHead then
         row.head:SetFontObject("GameFontNormalMed3")
         row.head:SetText(data.count > 0 and ("%s  |cff9a9a9a%d|r"):format(data.label, data.count) or data.label)
-        row.body:Hide()
-        row.giver:Hide()
-        row.page:Hide()
-        row.back:Hide()
         return
     end
     local id = data.id
@@ -666,16 +583,6 @@ local function InitQuestRow(row, data)
     else
         row.line:SetTextColor(0.85, 0.85, 0.85)
     end
-    local open = expanded[id]
-    row.back:SetShown(open and true or false)
-    row.body:SetShown(open and true or false)
-    row.line:SetShown(not open or why ~= nil)
-    if open then
-        row.body:SetWidth(BodyWidth())
-        row.body:SetText(Body(id))
-    end
-    row.giver:SetShown(open and quest[F.map] ~= nil)
-    row.page:SetShown(open and true or false)
 end
 
 local function SortQuests(list)
@@ -699,18 +606,17 @@ local function ChainBlocks(listed, wanted, showLocked)
     local here, order, seen = {}, {}, {}
     for _, id in ipairs(listed) do
         here[id] = true
-        local chain = Lore.Row(id)[F.chain]
-        if chain and not seen[chain[1]] then
-            seen[chain[1]] = true
-            order[#order + 1] = chain[1]
+        local chainFirst = Lore.ChainOf(id)
+        if chainFirst and not seen[chainFirst] then
+            seen[chainFirst] = true
+            order[#order + 1] = chainFirst
         end
     end
     local placed, held = {}, {}
     for _, first in ipairs(order) do
         local steps = {}
-        for _, id in ipairs(Lore.ChainSteps(first)) do
-            local state = Lore.StatusOf(id)
-            if here[id] or (state ~= Lore.HIDDEN and (state ~= Lore.LOCKED or showLocked)) then steps[#steps + 1] = id end
+        for _, id in ipairs(Lore.ChainFor(first)) do
+            if here[id] or Lore.StatusOf(id) ~= Lore.LOCKED or showLocked then steps[#steps + 1] = id end
         end
         if #steps > 1 then
             local at = Lore.DONE
@@ -741,10 +647,12 @@ end
 
 local function InsertBlock(provider, block)
     local first, steps = block.first, block.steps
-    provider:Insert({ chainHead = first, label = Lore.Row(first) and Lore.Row(first)[F.name] or Lore.Row(steps[1])[F.name] or "" })
+    local place = {} -- each step's number in the whole chain (the heading's dots, the quest page's list)
+    for i, id in ipairs(Lore.ChainFor(first)) do place[id] = i end
+    provider:Insert({ chainHead = first, label = Lore.Name(steps[1]) or "" })
     for i, id in ipairs(steps) do
         local before = steps[i - 1]
-        provider:Insert({ id = id, step = Lore.Row(id)[F.chain][2], showZone = not block.here[id] or nil,
+        provider:Insert({ id = id, step = place[id] or i, showZone = not block.here[id] or nil,
             railTop = before and (Lore.StatusOf(before) == Lore.DONE and "done" or "open") or nil,
             railBottom = steps[i + 1] and (Lore.StatusOf(id) == Lore.DONE and "done" or "open") or nil })
     end
@@ -788,6 +696,7 @@ function Journal:FillQuests(keepScroll)
             end
         end
         local blocks, held = ChainBlocks(listed, Wanted, ns.db.showLocked)
+        ns.AskRewards(listed) -- what the list doesn't know, from the game
         for _, section in ipairs(SECTIONS) do
             local state, label = section[1], section[2]
             if Wanted(state) then
@@ -808,8 +717,13 @@ function Journal:FillQuests(keepScroll)
                         if entry.block then
                             InsertBlock(provider, entry.block)
                         else
-                            local chain = Lore.Row(entry.id)[F.chain]
-                            provider:Insert({ id = entry.id, step = chain and chain[2], of = chain and chain[3] })
+                            local chainFirst = Lore.ChainOf(entry.id)
+                            local steps = chainFirst and Lore.ChainFor(chainFirst) or {}
+                            local step
+                            for i, id in ipairs(steps) do
+                                if id == entry.id then step = i end
+                            end
+                            provider:Insert({ id = entry.id, step = step and #steps > 1 and step or nil, of = step and #steps > 1 and #steps or nil })
                         end
                     end
                 end
@@ -1022,7 +936,6 @@ end
 
 -- The page shown, drawn again: from the top when it's just been opened, else where it was scrolled to.
 function Journal:Draw(keepScroll)
-    wipe(bodies)
     local listing = type(page) == "number" or page == "search"
     frame.questList:SetShown(listing)
     frame.questBar:SetShown(listing)
@@ -1860,7 +1773,6 @@ local function Build()
     questView:SetElementExtentCalculator(function(_, data)
         if data.section then return SECTION_H end
         if data.chainHead then return CHAIN_H end
-        if expanded[data.id] then return ExpandedHeight(data.id) end
         return QUEST_H
     end)
     questView:SetElementInitializer("Button", InitQuestRow)
@@ -1877,11 +1789,6 @@ local function Build()
     ScrollUtil.InitScrollBoxListWithScrollBar(wallList, wallBar, wallView)
     frame.wallList, frame.wallBar = wallList, wallBar
 
-    frame.measure = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    frame.measure:SetPoint("TOPLEFT")
-    frame.measure:SetSpacing(2)
-    frame.measure:SetJustifyH("LEFT")
-    frame.measure:Hide()
 
     frame.map = BuildMap(content)
     frame.grip = BuildGrip()
@@ -1956,6 +1863,7 @@ end
 function Journal:Open(target)
     if not ns.LoadData() then return end
     if not frame then Build() end
+    ns.ReadQuestLog()
     Lore.Refresh()
     ns.Badge.Record()
     if type(target) == "string" then

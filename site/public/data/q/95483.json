@@ -1,0 +1,1 @@
+{"objective":["Bring word of Varian Wrynn's fate to Thrall in Orgrimmar."],"needs":[],"same":null,"start":[null,null,null,null],"end":["Thrall",1454,31.7,37.8],"chain":[],"rewards":{"choose":[[279831,1,null,null,null],[279833,1,null,null,"inv_jewelry_necklace_15"],[279474,1,null,null,null]],"items":[],"rep":[],"money":0,"spell":0,"xp":2400},"rewardsFrom":"game","spots":{}}

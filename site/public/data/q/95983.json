@@ -1,1 +1,1 @@
-{"objective":["Bring the Gnawed Skull to Watcher Cornelius at Terral's Watch."],"needs":[],"same":null,"start":["Picked Carcass",2548,61.6,58.8],"end":["Watcher Cornelius",2548,59.5,64],"chain":[95983,95984,95986],"spots":{}}
+{"objective":["Bring the Gnawed Skull to Watcher Cornelius at Terral's Watch."],"needs":[],"same":null,"start":["Picked Carcass",2548,61.6,58.8],"end":["Watcher Cornelius",2548,59.5,64],"chain":[95983,95984,95986],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":700},"rewardsFrom":"game","spots":{}}

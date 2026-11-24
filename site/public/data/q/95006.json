@@ -1,0 +1,1 @@
+{"objective":["Speak with Orokai when you are ready to see what he learned from the Faintly Glowing Branch."],"needs":[],"same":null,"start":["Orokai",1450,41.5,43.6],"end":["Dendrite Starblaze",1450,56.2,30.6],"chain":[96321,96131,92612,96209,95006,93773,96930,96931],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":625},"rewardsFrom":"game","spots":{}}

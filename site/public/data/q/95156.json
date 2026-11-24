@@ -1,1 +1,1 @@
-{"objective":["Collect 3 Bundles of Hay for Ember at the training grounds."],"needs":[["Bundle of Hay",3]],"same":null,"start":["Ember Bladewhisper",2548,66.2,79.6],"end":["Ember Bladewhisper",2548,66.2,79.6],"chain":[95156,95184],"spots":{}}
+{"objective":["Collect 3 Bundles of Hay for Ember at the training grounds."],"needs":[["Bundle of Hay",3]],"same":null,"start":["Ember Bladewhisper",2548,66.2,79.6],"end":["Ember Bladewhisper",2548,66.2,79.6],"chain":[95156,95184],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":2100},"rewardsFrom":"game","spots":{}}

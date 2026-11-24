@@ -3,8 +3,7 @@ local _, ns = ...
 -- A quest's own page in the journal, laid out like the website's: the quest window's parchment with the
 -- objectives, story, rewards (the game's item slots, with their tooltips) and what the quest giver says when
 -- you come back and when you hand it in; beside it who gives and takes it and where, its level and side, and
--- its chain. Opened from an opened quest's "Quest page" button (or A again on a controller); the cross or B
--- closes it. The text is from the Lorebound_Text part for its group (ns.QuestText), and what the game showed you
+-- its chain. Opened by clicking a quest in the journal (or A on a controller); the cross or B closes it. The text is from the Lorebound_Text part for its group (ns.QuestText), and what the game showed you
 -- comes first.
 
 local F, Lore = ns.F, ns.Lore
@@ -30,6 +29,25 @@ local function Words(text)
     local class = UnitClass("player") or ""
     local race = UnitRace("player") or ""
     return (text:gsub("<name>", name):gsub("<class>", class:lower()):gsub("<race>", race))
+end
+
+-- 12345 as "12,345".
+local function Thousands(number)
+    local text = tostring(math.floor(number))
+    while true do
+        local grouped, count = text:gsub("^(-?%d+)(%d%d%d)", "%1,%2")
+        text = grouped
+        if count == 0 then return text end
+    end
+end
+
+-- The rewards you've seen for a quest yourself (Core.lua keeps them from its window or your log), in the list's
+-- shape, for a quest the list has none for.
+local function Seen(id)
+    local found = ns.db.rewards and ns.db.rewards[id]
+    if not found then return nil end
+    return { ch = #found.ch > 0 and found.ch or nil, it = #found.it > 0 and found.it or nil, m = found.m,
+             xp = found.xp, part = found.part, cap = found.cap }
 end
 
 local function FactionName(id)
@@ -147,11 +165,27 @@ local function Layout(id, keepScroll)
         Paragraphs(Words(description))
     end
 
-    local rewards = details.r
+    local rewards, listed = Seen(id), details.r -- the game's own over the list's (which may be part of them)
+    if rewards and listed then
+        rewards.xp, rewards.rep, rewards.sp = listed.xp or rewards.xp, listed.rep, listed.sp -- the game's is this
+        -- character's (less for a quest well below it)
+        if rewards.cap then rewards.m = listed.m end -- read at the level cap, where the money isn't known
+        if rewards.part and not rewards.ch then -- the server's answer for a quest not in your log: no choices in it
+            rewards.ch = listed.ch
+            local given, some = {}, {}
+            for _, item in ipairs(rewards.it or {}) do given[item[1]] = true end
+            for _, item in ipairs(listed.so or {}) do
+                if not given[item[1]] then some[#some + 1] = item end
+            end
+            rewards.so = #some > 0 and some or nil
+        end
+    end
+    rewards = rewards or listed
     if rewards then
         Heading("Rewards")
         for _, part in ipairs({ { rewards.ch, "You will be able to choose one of these rewards:" },
-                                { rewards.it, "You will receive:" } }) do
+                                { rewards.it, "You will receive:" },
+                                { rewards.so, "Rewards include:" } }) do
             local items, label = part[1], part[2]
             if items then
                 Paragraphs(label)
@@ -172,9 +206,11 @@ local function Layout(id, keepScroll)
             end
         end
         local coins = (C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString) or GetCoinTextureString
-        if rewards.m then Paragraphs(coins and coins(rewards.m) or ("%d copper"):format(rewards.m)) end
+        if rewards.m and rewards.m > 0 then Paragraphs(coins and coins(rewards.m) or ("%d copper"):format(rewards.m)) end
+        if rewards.xp then Paragraphs(("%s experience"):format(Thousands(rewards.xp))) end
         for _, rep in ipairs(rewards.rep or {}) do
-            Paragraphs(("%s%d reputation with %s"):format(rep[2] > 0 and "+" or "", rep[2], FactionName(rep[1])))
+            local faction = type(rep[1]) == "string" and rep[1] or FactionName(rep[1])
+            Paragraphs(("%s%d reputation with %s"):format(rep[2] > 0 and "+" or "", rep[2], faction))
         end
         if rewards.sp then Paragraphs("A spell is cast on you when you hand it in.") end
     end
@@ -190,8 +226,13 @@ local function Layout(id, keepScroll)
         Paragraphs(Words(completion))
     end
 
+    if details.nt then
+        Heading("Notes")
+        Paragraphs(details.nt)
+    end
+
     local note
-    if not (description or completion or rewards) then
+    if not (description or completion) then
         note = "This quest's story isn't known yet. Read it at the quest giver and Lorebound keeps it here: share it"
             .. " from the overview and it's here for everyone."
     elseif not (saved and saved[1]) then
@@ -215,6 +256,16 @@ local function Place(map, x, y)
     if not map then return "" end
     local info = C_Map.GetMapInfo(map)
     return ("\n|cff9a9a9a%s %s, %s|r"):format(info and info.name or "", x or "?", y or "?")
+end
+
+-- A chain's steps as this character sees them (Lore.ChainFor); a quest it can't have, looked at anyway, gets the
+-- whole chain it's in.
+local function ChainFor(first, shown)
+    local steps = Lore.ChainFor(first)
+    for _, id in ipairs(steps) do
+        if id == shown then return steps end
+    end
+    return Lore.ChainSteps(first)
 end
 
 local function ChainRow(i)
@@ -244,20 +295,35 @@ local function Side(id)
     local function Fact(label, value)
         if value and value ~= "" then facts[#facts + 1] = ("|cffffd100%s|r\n%s"):format(label, value) end
     end
-    Fact("Start", row[F.starter] and (row[F.starter] .. Place(row[F.map], row[F.x], row[F.y])))
-    Fact("End", row[F.finisher])
+    local details = not Lore.IsLearned(id) and ns.QuestText(id, select(2, Lore.Zone(row[F.zone]))) or {}
+    Fact("Start", details.ws or row[F.starter] and (row[F.starter] .. Place(row[F.map], row[F.x], row[F.y])))
+    Fact("End", details.we or row[F.finisher])
     local level, minLevel = row[F.level], row[F.minLevel]
     Fact("Level", level and level > 0 and (minLevel and ("%d, from level %d"):format(level, minLevel) or tostring(level)))
     Fact("Zone", (Lore.Zone(row[F.zone])))
+    local needs, named = {}, {}
+    for _, field in ipairs({ F.needsAll, F.needsAny }) do
+        for _, need in ipairs(row[field] or {}) do
+            need = math.abs(need)
+            local name = Lore.Name(need)
+            if Lore.StatusOf(need) ~= Lore.HIDDEN and not named[name] then
+                named[name] = true
+                needs[#needs + 1] = need
+            end
+        end
+    end
+    if #needs > 0 then Fact("Needs first", ns.Journal.NamesWithTicks(needs)) end
+    if row[F.breadcrumbFor] then Fact("Leads to", ns.Journal.NamesWithTicks({ row[F.breadcrumbFor] })) end
+    if Lore.IsLearned(id) then Fact("Learned in game", "Not in Lorebound's list yet: share it from the overview.") end
     Fact("Quest ID", tostring(id))
     view.facts:SetText(table.concat(facts, "\n\n"))
     view.giver:SetEnabled(row[F.map] ~= nil)
 
     for _, line in ipairs(pool.chain) do line:Hide() end
-    local chain = row[F.chain]
-    view.chainHead:SetShown(chain ~= nil)
-    if not chain then return end
-    local steps = Lore.ChainSteps(chain[1])
+    local chainFirst = Lore.ChainOf(id)
+    view.chainHead:SetShown(chainFirst ~= nil)
+    if not chainFirst then return end
+    local steps = ChainFor(chainFirst, id)
     view.chainHead:SetText(("Quest chain  |cff9a9a9a%d quests|r"):format(#steps))
     -- As many rows as fit the column under the facts, around the quest shown.
     local room = view.side:GetHeight() - view.facts:GetStringHeight() - 14 - 22 - 18 - 18 - 36
@@ -275,7 +341,7 @@ local function Side(id)
         line:SetPoint("TOPLEFT", view.chainHead, "BOTTOMLEFT", 0, -6 - (i - first) * 20)
         ns.Journal.SetStatusIcon(line.icon, (Lore.StatusOf(step)))
         local here = step == id
-        line.name:SetText(("%s%d. %s|r"):format(here and "|cffffd100" or "|cffffffff", Lore.Row(step)[F.chain][2], Lore.Name(step) or "?"))
+        line.name:SetText(("%s%d. %s|r"):format(here and "|cffffd100" or "|cffffffff", i, Lore.Name(step) or "?"))
         line:EnableMouse(not here)
     end
 end
@@ -377,6 +443,9 @@ function QuestPage.Show(id)
     view:Show()
     Layout(id)
     Side(id)
+    ns.AskRewardsNow(id, function() -- not known: the game's answer redraws the page
+        if current == id and QuestPage.IsShown() then Layout(id, true) end
+    end)
     view.hint:SetText(ns.GamepadUI() and "D-pad up/down: scroll   left/right: the chain\nX: the quest giver   B: back" or "")
     ns.Pad.Mark()
 end
@@ -395,15 +464,17 @@ function QuestPage.Scroll(step)
     scroll:SetVerticalScroll(math.max(0, math.min(most, scroll:GetVerticalScroll() + step)))
 end
 
--- The chain's nearest step before (direction -1) or after (1) the one shown.
+-- The chain's step before (direction -1) or after (1) the one shown, as the chain list shows them.
 function QuestPage.Step(direction)
-    local chain = current and Lore.Row(current)[F.chain]
-    if not chain then return end
-    local steps = Lore.ChainSteps(chain[1])
-    local from, to = 1, #steps
-    if direction < 0 then from, to = #steps, 1 end
-    for i = from, to, direction < 0 and -1 or 1 do
-        if (Lore.Row(steps[i])[F.chain][2] - chain[2]) * direction > 0 then return QuestPage.Show(steps[i]) end
+    local chainFirst = current and Lore.ChainOf(current)
+    if not chainFirst then return end
+    local steps = ChainFor(chainFirst, current)
+    for i, id in ipairs(steps) do
+        if id == current then
+            local target = steps[i + direction]
+            if target then QuestPage.Show(target) end
+            return
+        end
     end
 end
 

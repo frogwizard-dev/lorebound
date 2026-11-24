@@ -1,1 +1,1 @@
-{"objective":["Deliver the Southern Watch Gnoll Report to the knight commander at Farholde Keep."],"needs":[],"same":null,"start":["Cedric Dalton",2548,39.6,74.7],"end":["Demar Brant",2548,66.7,81],"chain":[95147,95148],"spots":{}}
+{"objective":["Deliver the Southern Watch Gnoll Report to the knight commander at Farholde Keep."],"needs":[],"same":null,"start":["Cedric Dalton",2548,39.6,74.7],"end":["Demar Brant",2548,66.7,81],"chain":[95147,95148],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":290},"rewardsFrom":"game","spots":{}}

@@ -1,1 +1,1 @@
-{"objective":["Seek out the SI:7 agent stationed on Theramore Isle."],"needs":[],"same":null,"start":["Master Mathias Shaw",1453,78.3,70.7],"end":["Sully McCleary",1445,66.2,45.1],"chain":[95194,95196,95198],"spots":{}}
+{"objective":["Seek out the SI:7 agent stationed on Theramore Isle."],"needs":[],"same":null,"start":["Master Mathias Shaw",1453,78.3,70.7],"end":["Sully McCleary",1445,66.2,45.1],"chain":[95194,95196,95198,95262],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":1300},"rewardsFrom":"game","spots":{}}

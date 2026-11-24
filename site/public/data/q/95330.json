@@ -1,1 +1,1 @@
-{"objective":["Deliver Cassandra's surplus farm goods to Halligan Turner at Turner's Logging Camp."],"needs":[],"same":null,"start":["Cassandra Wheeler",2548,64.7,82.9],"end":["Halligan Turner",2548,41.2,62.9],"chain":[],"spots":{}}
+{"objective":["Deliver Cassandra's surplus farm goods to Halligan Turner at Turner's Logging Camp."],"needs":[],"same":null,"start":["Cassandra Wheeler",2548,64.7,82.9],"end":["Halligan Turner",2548,41.2,62.9],"chain":[],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":290},"rewardsFrom":"game","spots":{}}

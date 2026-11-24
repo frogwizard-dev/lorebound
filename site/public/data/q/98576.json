@@ -1,1 +1,1 @@
-{"objective":["Read the Glyphic Parchment and speak with Mai'ah near the entrance to the Den in the Valley of Trials."],"needs":[],"same":null,"start":["Gornek",1411,42.1,68.3],"end":["Mai'ah",1411,42.5,69],"chain":[],"spots":{}}
+{"objective":["Read the Glyphic Parchment and speak with Mai'ah near the entrance to the Den in the Valley of Trials."],"needs":[],"same":null,"start":["Gornek",1411,42.1,68.3],"end":["Mai'ah",1411,42.5,69],"chain":[],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{}}

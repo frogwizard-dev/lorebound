@@ -1,1 +1,1 @@
-{"objective":["Find the missing courier, and ensure Dar's shipment is delivered to the Harborage."],"needs":[],"same":null,"start":["Dar",1435,44.7,57.2],"end":["Magtoor",1435,26,31.4],"chain":[],"spots":{}}
+{"objective":["Find the missing courier, and ensure Dar's shipment is delivered to the Harborage."],"needs":[],"same":null,"start":["Dar",1435,44.7,57.2],"end":["Magtoor",1435,26,31.4],"chain":[],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":1350},"rewardsFrom":"game","spots":{}}

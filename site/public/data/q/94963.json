@@ -1,1 +1,1 @@
-{"objective":["<Fuzzle snarls.>"],"needs":[],"same":null,"start":["Fuzzle",2548,47.3,51.4],"end":["Fuzzle's Treasure",2548,41.6,47.7],"chain":[],"spots":{}}
+{"objective":["<Fuzzle snarls.>"],"needs":[],"same":null,"start":["Fuzzle",2548,47.3,51.4],"end":["Fuzzle's Treasure",2548,41.6,47.7],"chain":[94961,94963],"rewards":{"choose":[],"items":[],"rep":[],"money":5000,"spell":0,"xp":3150},"rewardsFrom":"game","spots":{}}

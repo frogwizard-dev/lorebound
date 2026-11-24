@@ -1,1 +1,1 @@
-{"objective":["Read the Folded Parchment then speak with Xyton Silverwind in Thendal Grove."],"needs":[],"same":null,"start":["Rorian the Dayseeker",2521,42,23.5],"end":["Xyton Silverwind",2521,41.9,23.4],"chain":[],"spots":{}}
+{"objective":["Read the Folded Parchment then speak with Xyton Silverwind in Thendal Grove."],"needs":[],"same":null,"start":["Rorian the Dayseeker",2521,42,23.5],"end":["Xyton Silverwind",2521,41.9,23.4],"chain":[],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{}}

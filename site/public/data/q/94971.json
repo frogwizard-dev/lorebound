@@ -1,1 +1,1 @@
-{"objective":["Speak with Danitha Morr to learn to summon your Warhorse."],"needs":[],"same":null,"start":["Danitha Morr",1420,22.1,44.7],"end":["Danitha Morr",1420,22.1,44.7],"chain":[97022,94971],"spots":{}}
+{"objective":["Speak with Danitha Morr to learn to summon your Warhorse."],"needs":[],"same":null,"start":["Danitha Morr",1420,22.1,44.7],"end":["Danitha Morr",1420,22.1,44.7],"chain":[97022,94971],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":775},"rewardsFrom":"game","spots":{}}

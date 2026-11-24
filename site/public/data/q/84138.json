@@ -1,1 +1,1 @@
-{"objective":["Explain the book situation to Doctor Jurgens' colleague, Nami, in Winterspring."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[84137,84138],"spots":{}}
+{"objective":["Explain the book situation to Doctor Jurgens' colleague, Nami, in Winterspring."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[84137,84138],"rewards":{"choose":[],"items":[],"rep":[],"money":14850,"spell":0,"xp":4950},"rewardsFrom":"game","spots":{}}

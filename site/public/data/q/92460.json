@@ -1,1 +1,1 @@
-{"objective":["Speak with Rorian the Dayseeker in Thendal Grove."],"needs":[],"same":null,"start":["Ailee Farheart",2521,42.8,23.4],"end":["Rorian the Dayseeker",2521,42,23.5],"chain":[92460,92461],"spots":{}}
+{"objective":["Speak with Rorian the Dayseeker in Thendal Grove."],"needs":[],"same":null,"start":["Ailee Farheart",2521,42.8,23.4],"end":["Rorian the Dayseeker",2521,42,23.5],"chain":[92460,92461],"rewards":{"choose":[],"items":[[264908,1,"Ancient Heirloom",1,"inv_jewelry_ring_118"]],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{}}

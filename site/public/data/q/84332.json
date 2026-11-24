@@ -1,1 +1,1 @@
-{"objective":["You find a small runestone at the bottom of the chest..."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[84330,84414,84332],"spots":{}}
+{"objective":["You find a small runestone at the bottom of the chest..."],"needs":[],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[84330,84414,84332],"rewards":{"choose":[[227935,1,null,null,"inv_misc_bone_03"]],"items":[],"rep":[],"money":0,"spell":0,"xp":12100},"rewardsFrom":"game","spots":{}}

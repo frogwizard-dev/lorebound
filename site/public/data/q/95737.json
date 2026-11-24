@@ -1,1 +1,1 @@
-{"objective":["Speak with Caitlin Grassman in Menethil Harbor."],"needs":[],"same":null,"start":["Llana",1440,35,48.5],"end":["Caitlin Grassman",1437,11.9,58.8],"chain":[],"spots":{}}
+{"objective":["Speak with Caitlin Grassman in Menethil Harbor."],"needs":[],"same":null,"start":["Llana",1440,35,48.5],"end":["Caitlin Grassman",1437,11.9,58.8],"chain":[],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":1250},"rewardsFrom":"game","spots":{}}

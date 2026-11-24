@@ -1,1 +1,1 @@
-{"objective":["Deliver the missive to Krom'rosh at Rog'mar."],"needs":[],"same":null,"start":["Da'grosh",2548,33.5,37.9],"end":["Krom'rosh",2548,59.4,45.6],"chain":[95278,94968],"spots":{}}
+{"objective":["Deliver the missive to Krom'rosh at Rog'mar."],"needs":[],"same":null,"start":["Da'grosh",2548,33.5,37.9],"end":["Krom'rosh",2548,59.4,45.6],"chain":[95278,94968],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":390},"rewardsFrom":"game","spots":{}}

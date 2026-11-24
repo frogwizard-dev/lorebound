@@ -1,1 +1,1 @@
-{"objective":["Find Dunston Willis somewhere among the ogres in Bolder'ok."],"needs":[],"same":null,"start":["Watcher Cornelius",2548,59.5,64],"end":["Dunston Willis",2548,68.6,12.7],"chain":[96125,96126,94927],"spots":{}}
+{"objective":["Find Dunston Willis somewhere among the ogres in Bolder'ok."],"needs":[],"same":null,"start":["Watcher Cornelius",2548,59.5,64],"end":["Dunston Willis",2548,68.6,12.7],"chain":[96125,96126,94927],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":360},"rewardsFrom":"game","spots":{}}

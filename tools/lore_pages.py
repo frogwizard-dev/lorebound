@@ -6,6 +6,9 @@
   database in lore_sources/classicdb.sql.gz), shown only where Forever's objective is Classic's word for word
   ("same"), since Forever rewrote many quests. Where it doesn't apply, players' text from Forever (LT1 lines in
   the reports you've approved, lore_reports) fills the page, marked "shared".
+- ForeverDungeonJournal, for its dungeon quests: Forever's own rewards (over Classic's), its notes and where each is
+  picked up and handed in. Rewards otherwise unknown come from players' reports (LR1 lines), else OneForAll's list of
+  the gear a quest gives (GPL-3; shown as "rewards include"). "rewardsFrom" says which.
 - Where it's handed in and where its objectives are (Zquest's spawns), and its chain (the list's links).
 """
 import gzip
@@ -143,6 +146,44 @@ def rewards(entry, items, forever):
     return out if (choose or receive or rep or money or out["spell"]) else None
 
 
+def other_rewards(qid, journal_rewards, shared_rewards, forever, gear=None, game=None, classic_items=None):
+    """A quest's rewards from ForeverDungeonJournal or players' reports, in rewards()'s shape, and where from; names,
+    quality and icons from Forever's own item tables where it has them."""
+    def entry(item, count, name=None, quality=None):
+        forever_name, forever_quality, icon = forever.get(item, (None, None, None))
+        if name and name.startswith("Item "):  # the journal's placeholder for an item it hadn't named
+            name = None
+        if not name and classic_items and item in classic_items:  # Classic's own items keep Classic's names
+            name, quality = classic_items[item]
+        return [item, count, forever_name or name, forever_quality if forever_name else quality, icon]
+    journal = (journal_rewards or {}).get(qid)
+    mine = (game or {}).get(str(qid))
+    if mine:  # the game server's own answer: the items and money; reputation and experience from the journal
+        found = {"choose": [entry(item, count) for item, count in mine.get("choose", [])],
+                 "items": [entry(item, count) for item, count in mine["items"]],
+                 "rep": journal["rep"] if journal else [], "money": mine["money"], "spell": 0,
+                 "xp": (journal and journal["xp"]) or mine.get("xp")}
+        return found, "game"
+    if journal and (journal["items"] or journal["extra"] or journal["money"] or journal["rep"] or journal["xp"]):
+        listed = [entry(item, count, name, quality) for item, name, quality, count in journal["items"]]
+        extra = [entry(item, count, name, quality) for item, name, quality, count in journal["extra"]]
+        found = {"choose": listed if journal["choice"] else [], "items": extra + ([] if journal["choice"] else listed),
+                 "rep": journal["rep"], "money": journal["money"], "spell": 0, "xp": journal["xp"]}
+        return found, "journal"
+    players = (shared_rewards or {}).get(qid)
+    if players:
+        found = {"choose": [entry(item, count) for item, count in players["choose"]],
+                 "items": [entry(item, count) for item, count in players["items"]],
+                 "rep": [], "money": players["money"], "spell": 0}
+        return found, "players"
+    some = (gear or {}).get(qid)
+    if some:
+        found = {"choose": [], "items": [], "some": [entry(item, 1, name) for item, name in some], "rep": [],
+                 "money": 0, "spell": 0}
+        return found, "gear"
+    return None, None
+
+
 # ---------------------------------------------------------------- chains
 
 def chains(rows, I):
@@ -174,9 +215,17 @@ def chains(rows, I):
 
 # ---------------------------------------------------------------- pages
 
-def write(rows, extras, I, chain_of, shared_text=None):
+def write(rows, extras, I, chain_of, shared_text=None, journal_rewards=None, shared_rewards=None, gear=None,
+          game=None):
     """Writes every quest's page and returns them { quest: page }; chain_of is chains()'s, shared_text the players'
-    text by quest ({ field: text }, make_lore.py's)."""
+    text by quest ({ field: text }), journal_rewards ForeverDungeonJournal's rewards ({ choice, items: [(item, name,
+    quality)] }), shared_rewards the players' ({ choose, items: [[item, count]], money }) and gear OneForAll's gear
+    rewards ([(item, name)]: part of them, shown as "some"), all make_lore.py's. game is the game server's own
+    answers (sources/Game/rewards.json, tools/harvest): { "player": {...}, "quests": { quest: {...} } }."""
+    game_quests = (game or {}).get("quests") or {}
+    game_at_cap = bool(((game or {}).get("player") or {}).get("atCap"))
+    compared = {"items": {True: 0, False: 0}, "money": {True: 0, False: 0}}
+    mismatches = []
     os.makedirs(OUT, exist_ok=True)
     quests, items = classic() if os.path.exists(CLASSIC_SQL) else ({}, {})
     wowhead = json.load(open(WOWHEAD, encoding="utf-8")) if os.path.exists(WOWHEAD) else {}
@@ -208,6 +257,56 @@ def write(rows, extras, I, chain_of, shared_text=None):
                             "completion": game_text(old["OfferRewardText"])}
             page["rewards"] = rewards(old, items, item_names)
         players = (shared_text or {}).get(qid)
+        journal = (journal_rewards or {}).get(qid)
+        found, source = other_rewards(qid, journal_rewards, shared_rewards, item_names, gear, game_quests, items)
+        classic_rewards = page.get("rewards")
+        if found and source == "game":
+            # The game tells choices only for quests in the harvester's log: none means not known. What it doesn't
+            # carry comes from the next source down (the journal, players), then Classic's.
+            choices_known = "choose" in game_quests[str(qid)]  # the game's cache tells them, none included
+            if classic_rewards:
+                matches = {"items": sorted(map(tuple, (e[:2] for e in found["items"])))
+                           == sorted(map(tuple, (e[:2] for e in classic_rewards["items"]))),
+                           "money": found["money"] == classic_rewards["money"]}
+                for key, agrees in matches.items():
+                    compared[key][agrees] += 1
+                if not matches["items"] and len(mismatches) < 8:
+                    mismatches.append(qid)
+                if game_at_cap:  # money at the cap may carry the experience as gold: Classic's, where it has it
+                    found["money"] = classic_rewards["money"] or found["money"]
+            below, below_source = other_rewards(qid, journal_rewards, shared_rewards, item_names, gear, None, items)
+            for other in ((below if below_source in ("journal", "players") else None), classic_rewards):
+                if not other:
+                    continue
+                if not choices_known and not found["choose"] and other.get("choose"):
+                    found["choose"] = other["choose"]
+                if not choices_known and not found["items"] and other.get("items"):
+                    # none from the game, whose answer had no choices either: kept. (A complete answer stands:
+                    # Forever often made Classic's one reward a choice among new ones.)
+                    offered = {e[0] for e in found["choose"]}
+                    found["items"] = [e for e in other["items"] if e[0] not in offered]
+                for field in ("rep", "spell"):
+                    if not found[field] and other.get(field):
+                        found[field] = other[field]
+            if not choices_known and not found["choose"]:
+                given = {e[0] for e in found["items"]}
+                some = [e for e in (below or {}).get("some", []) if e[0] not in given] if below_source == "gear" else []
+                if some:
+                    found["some"] = some
+                if not classic_rewards and below_source not in ("journal", "players"):
+                    page["choicesUnknown"] = True  # Forever's own quest: still asked of players
+            page["rewards"], page["rewardsFrom"] = found, source
+        elif found and source == "journal" and classic_rewards:  # Forever's own, field by field: what it doesn't say, Classic's
+            for field in ("choose", "items", "rep", "money", "spell"):
+                if not found[field]:
+                    found[field] = classic_rewards[field]
+            page["rewards"], page["rewardsFrom"] = found, source
+        elif found and not classic_rewards:
+            page["rewards"], page["rewardsFrom"] = found, source
+        if journal:
+            for key in ("note", "pickup", "turnin"):
+                if journal[key]:
+                    page[key] = journal[key]
         if players and same is not True:  # Forever's own text, as players read it, field by field over Classic's
             if not forever and game_text(players.get("objective")):   # unchecked text (Wowhead's objective wins)
                 page["objective"] = game_text(players["objective"])
@@ -231,4 +330,9 @@ def write(rows, extras, I, chain_of, shared_text=None):
     print("quest pages %d: Classic's text kept %d, changed in Forever %d, not on Wowhead yet %d, new in Forever %d;"
           " players' text on %d" % (len(rows), counts["same"], counts["changed"], counts["unchecked"], counts["new"],
                                     counts["shared"]))
+    if game_quests:
+        print("game rewards on %d quests; against Classic's: items agree %d, differ %d (e.g. %s); money agrees %d,"
+              " differs %d" % (sum(1 for page in pages.values() if page.get("rewardsFrom") == "game"),
+                               compared["items"][True], compared["items"][False], mismatches,
+                               compared["money"][True], compared["money"][False]))
     return pages

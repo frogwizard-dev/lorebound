@@ -1,1 +1,1 @@
-{"objective":["Deliver the Hyjal Silphium Poultice to Enho and Maruke."],"needs":[],"same":null,"start":["Ortak Lomgok",2482,12.9,52.9],"end":["Ortak Lomgok",2482,12.9,52.9],"chain":[],"spots":{}}
+{"objective":["Deliver the Hyjal Silphium Poultice to Enho and Maruke."],"needs":[],"same":null,"start":["Ortak Lomgok",2482,12.9,52.9],"end":["Ortak Lomgok",2482,12.9,52.9],"chain":[],"rewards":{"choose":[],"items":[[255729,1,"Manual: Major Healing Potion",2,"inv_misc_book_03"]],"rep":[],"money":0,"spell":0,"xp":600},"rewardsFrom":"game","spots":{}}

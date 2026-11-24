@@ -14,8 +14,8 @@ local _, ns = ...
 -- inside Blizzard's window code) and the moment a fight starts, when the journal closes too.
 --
 --   D-pad up/down     zones (the page follows), quests, or rows of the overview
---   D-pad right / A   into the zone's quests (or the overview's badges); A opens what's chosen, and A on
---                     an opened quest its page (Quest.lua takes the keys while that's up)
+--   D-pad right / A   into the zone's quests (or the overview's badges); A opens what's chosen: a quest's
+--                     page (Quest.lua takes the keys while that's up)
 --   D-pad left / B    back; B closes a badge, the giver map or the settings, then the journal
 --   X                 show the quest giver (on a zone or a badge: pin or unpin it)
 --   Y                 locked-out quests on/off (on the overview: the settings)
@@ -408,11 +408,7 @@ local PRESS = {
             if item then item:Click() end
         elseif focus == "list" then
             local id = Quest()
-            if id and ns.Journal:IsExpanded(id) then
-                ns.QuestPage.Show(id) -- A again on an opened quest: its page
-            elseif id then
-                ns.Journal:ToggleQuest(id)
-            end
+            if id then ns.QuestPage.Show(id) end
         elseif focus == "wall" then
             local medal = Medal()
             if medal then ns.Journal:Inspect(medal.special or { "zone", medal.zone }) end

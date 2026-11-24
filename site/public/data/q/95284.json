@@ -1,1 +1,1 @@
-{"objective":["Find the missing Kor'kron Elites."],"needs":[],"same":null,"start":["Nazeer Bloodpike",1445,35.2,30.7],"end":["Sergeant Ulka",1445,70.3,18.9],"chain":[95284,95285],"spots":{}}
+{"objective":["Find the missing Kor'kron Elites."],"needs":[],"same":null,"start":["Nazeer Bloodpike",1445,35.2,30.7],"end":["Sergeant Ulka",1445,70.3,18.9],"chain":[95284,95285,95309],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":1300},"rewardsFrom":"game","spots":{}}

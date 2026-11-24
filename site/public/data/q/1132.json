@@ -1,1 +1,1 @@
-{"objective":["Speak with Fiora Longears in Theramore."],"needs":[],"same":false,"start":["Red Jack Flint",1437,10,58],"end":["Fiora Longears",1445,66.5,45.1],"chain":[1132,1133],"spots":{}}
+{"objective":["Speak with Fiora Longears in Theramore."],"needs":[],"same":false,"start":["Red Jack Flint",1437,10,58],"end":["Fiora Longears",1445,66.5,45.1],"chain":[1132,1133],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":1200},"rewardsFrom":"game","spots":{}}

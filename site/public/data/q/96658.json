@@ -1,1 +1,1 @@
-{"objective":["Speak with William Pickman in Brill to learn to become a cook."],"needs":[],"same":null,"start":["Eleanor Shackleton",1420,57.3,55.5],"end":["William Pickman",1420,61.8,51.4],"chain":[],"spots":{"1420":[[61.8,51.4]]}}
+{"objective":["Speak with William Pickman in Brill to learn to become a cook."],"needs":[],"same":null,"start":["Eleanor Shackleton",1420,57.3,55.5],"end":["William Pickman",1420,61.8,51.4],"chain":[],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{"1420":[[61.8,51.4]]}}

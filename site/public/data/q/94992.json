@@ -1,1 +1,1 @@
-{"objective":["Bring the lost horse back to Wheeler's Grange."],"needs":[],"same":null,"start":["Lost Horse",2548,54.9,73],"end":["Benjy Wheeler",2548,54.9,73],"chain":[94618,94992],"spots":{}}
+{"objective":["Bring the lost horse back to Wheeler's Grange."],"needs":[],"same":null,"start":["Lost Horse",2548,54.9,73],"end":["Benjy Wheeler",2548,54.9,73],"chain":[94618,94992],"rewards":{"choose":[],"items":[],"rep":[],"money":2000,"spell":0,"xp":2850},"rewardsFrom":"game","spots":{}}

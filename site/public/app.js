@@ -662,11 +662,18 @@ async function drawQuest(id) {
     page.innerHTML = html + `<p class="bad">Couldn't load this quest's page. Check your connection and try again.</p></section>`
     return
   }
-  const note = data.shared ? "Forever's own text, as players saw it in game."
-    : data.same === true ? "Forever's objective is Classic's word for word, so the text and rewards below are Classic's."
-    : data.same === false ? "Forever changed this quest. The objective is Forever's own; its full text and rewards aren't known yet."
-      : data.text ? "Classic's text and rewards, not yet checked against Forever."
-        : "New in Forever. Its full text and rewards aren't known yet."
+  const fromJournal = data.rewardsFrom === 'journal' ? " Its rewards and notes are ForeverDungeonJournal's." : ''
+  const fromPlayers = data.rewardsFrom === 'players' ? ' Its rewards are as players saw them in game.'
+    : data.rewardsFrom === 'game' ? " Its rewards are the game's own, as Forever's servers give them."
+      + (data.choicesUnknown ? " Any choice of rewards isn't known yet." : '')
+    : data.rewardsFrom === 'gear' ?" The gear it gives is from OneForAll; any other rewards aren't known yet."
+    : data.rewards && !data.rewardsFrom ? " Its rewards are Classic's." : ''
+  const unknown = data.rewards ? 'Its full text isn\'t known yet.' : 'Its full text and rewards aren\'t known yet.'
+  const note = (data.shared ? "Forever's own text, as players saw it in game."
+    : data.same === true ? "Forever's objective is Classic's word for word, so the text below is Classic's."
+    : data.same === false ? `Forever changed this quest. The objective is Forever's own. ${unknown}`
+      : data.text ? "Classic's text, not yet checked against Forever."
+        : `New in Forever. ${unknown}`) + fromJournal + fromPlayers
   html += `<p class="note">${note}</p></section><div class="qgrid"><article class="paper">
     <h2>Objectives</h2>${paragraphs(data.objective)}
     ${data.needs.length ? `<ul class="needs">${data.needs.map(([what, count]) => `<li>${esc(what)}<b>${status === 'done' || status === 'skip' ? `${count}/${count}` : `x${count}`}</b></li>`).join('')}</ul>` : ''}`
@@ -676,17 +683,20 @@ async function drawQuest(id) {
     html += '<h2>Rewards</h2>'
     if (rewards.choose.length) html += `<p>You will be able to choose one of these:</p><ul class="rewards">${rewards.choose.map(rewardSlot).join('')}</ul>`
     if (rewards.items.length) html += `<p>You will receive:</p><ul class="rewards">${rewards.items.map(rewardSlot).join('')}</ul>`
+    if (rewards.some && rewards.some.length) html += `<p>Rewards include:</p><ul class="rewards">${rewards.some.map(rewardSlot).join('')}</ul>`
     if (rewards.money) html += `<p>${money(rewards.money)}</p>`
     if (rewards.spell) html += `<p><a href="https://www.wowhead.com/forever/spell=${rewards.spell}" target="_blank" rel="noopener">A spell</a> is cast on you.</p>`
-    for (const [factionId, value] of rewards.rep) html += `<p>${value > 0 ? '+' : ''}${value} reputation with ${esc(faction(factionId))}</p>`
+    if (rewards.xp) html += `<p>${number(rewards.xp)} experience</p>`
+    for (const [who, value] of rewards.rep) html += `<p>${value > 0 ? '+' : ''}${value} reputation with ${esc(typeof who === 'string' ? who : faction(who))}</p>`
   }
   if (data.text && data.text.progress.length) html += `<details><summary>When you come back</summary>${paragraphs(data.text.progress)}</details>`
   if (data.text && data.text.completion.length) html += `<details><summary>On completion</summary>${paragraphs(data.text.completion)}</details>`
+  if (data.note) html += `<h2>Notes</h2><p>${esc(data.note)}</p>`
   html += '</article><aside class="qside">'
   html += questMap(data, quest)
   html += `<dl class="facts">
-    ${fact('<span class="pin-key start">!</span> Start', placeText(data.start[0], data.start[1], data.start[2], data.start[3]))}
-    ${fact('<span class="pin-key end">?</span> End', placeText(data.end[0], data.end[1], data.end[2], data.end[3]))}
+    ${fact('<span class="pin-key start">!</span> Start', data.pickup ? esc(data.pickup) : placeText(data.start[0], data.start[1], data.start[2], data.start[3]))}
+    ${fact('<span class="pin-key end">?</span> End', data.turnin ? esc(data.turnin) : placeText(data.end[0], data.end[1], data.end[2], data.end[3]))}
     ${fact('Level', level > 0 ? `${level}${min ? `, from level ${min}` : ''}` : '')}
     ${fact('Side', sideOf(quest).replace('the ', '').replace(/^b/, 'B'))}
     ${fact('Quest ID', `<a href="https://www.wowhead.com/forever/quest=${id}" target="_blank" rel="noopener">${id}</a>`)}</dl>`

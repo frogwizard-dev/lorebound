@@ -1,1 +1,1 @@
-{"objective":["Speak to Eleanor Shackleton near Brill."],"needs":[],"same":null,"start":["Executor Arren",1420,32.1,66],"end":["Eleanor Shackleton",1420,57.3,55.5],"chain":[96656,96607],"spots":{}}
+{"objective":["Speak to Eleanor Shackleton near Brill."],"needs":[],"same":null,"start":["Executor Arren",1420,32.1,66],"end":["Eleanor Shackleton",1420,57.3,55.5],"chain":[96656,96607],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{}}

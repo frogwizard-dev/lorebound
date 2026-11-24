@@ -1,1 +1,1 @@
-{"objective":["Slay 10 Wind Hollows."],"needs":[["Wind Hollow",10]],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[],"spots":{}}
+{"objective":["Slay 10 Wind Hollows."],"needs":[["Wind Hollow",10]],"same":null,"start":[null,null,null,null],"end":[null,null,null,null],"chain":[],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":null},"rewardsFrom":"game","spots":{}}

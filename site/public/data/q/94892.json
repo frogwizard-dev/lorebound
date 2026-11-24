@@ -1,1 +1,1 @@
-{"objective":["Return Marshal Ryan's crest to Knight Commander Demar Brant in Farholde Keep."],"needs":[],"same":null,"start":["Marshal Ryan",2548,26.1,40.8],"end":["Demar Brant",2548,66.7,81],"chain":[94885,94887,94892,94893],"spots":{}}
+{"objective":["Return Marshal Ryan's crest to Knight Commander Demar Brant in Farholde Keep."],"needs":[],"same":null,"start":["Marshal Ryan",2548,26.1,40.8],"end":["Demar Brant",2548,66.7,81],"chain":[94885,94887,94892,94893],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":4200},"rewardsFrom":"game","spots":{}}

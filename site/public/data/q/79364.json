@@ -1,1 +1,1 @@
-{"objective":["Speak with Prate Cloudseer in Thousand Needles."],"needs":[],"same":null,"start":["Rau Cliffrunner",1441,46.1,51.7],"end":["Prate Cloudseer",1441,53.5,42.6],"chain":[1531,79360,79364,79361,79366,79442],"spots":{}}
+{"objective":["Speak with Prate Cloudseer in Thousand Needles."],"needs":[],"same":null,"start":["Rau Cliffrunner",1441,46.1,51.7],"end":["Prate Cloudseer",1441,53.5,42.6],"chain":[1531,79360,79364,79361,79366,79442],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":270},"rewardsFrom":"game","spots":{}}

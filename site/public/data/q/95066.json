@@ -1,1 +1,1 @@
-{"objective":["Deliver the report to Demar Brant in Farholde Keep."],"needs":[],"same":null,"start":["Watcher Cornelius",2548,59.5,64],"end":["Demar Brant",2548,66.7,81],"chain":[95064,95066],"spots":{}}
+{"objective":["Deliver the report to Demar Brant in Farholde Keep."],"needs":[],"same":null,"start":["Watcher Cornelius",2548,59.5,64],"end":["Demar Brant",2548,66.7,81],"chain":[95064,95066],"rewards":{"choose":[],"items":[[275052,1,null,null,"inv_misc_bone_10"]],"rep":[],"money":0,"spell":0,"xp":1500},"rewardsFrom":"game","spots":{}}

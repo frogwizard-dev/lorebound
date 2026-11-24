@@ -1,1 +1,1 @@
-{"objective":["Go to Wheeler's Grange to inquire about the missing horses."],"needs":[],"same":null,"start":["Demar Brant",2548,66.7,81],"end":["Benjy Wheeler",2548,54.9,73],"chain":[94613,94615,94617],"spots":{}}
+{"objective":["Go to Wheeler's Grange to inquire about the missing horses."],"needs":[],"same":null,"start":["Demar Brant",2548,66.7,81],"end":["Benjy Wheeler",2548,54.9,73],"chain":[94613,94615,94617],"rewards":{"choose":[],"items":[],"rep":[],"money":0,"spell":0,"xp":290},"rewardsFrom":"game","spots":{}}
