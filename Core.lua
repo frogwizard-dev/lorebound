@@ -26,6 +26,7 @@ ns.defaults = {
     pinned = {},         -- [zone name] = true: pinned to the top of the zone list and the overview
     size = { 980, 640 }, -- the journal's width and height (its resize grip)
     scale = 1,           -- the journal's scale (the grip with Shift held)
+    -- toastPoint = { x, y }: where the toast's top sits from the top middle of the screen, once dragged (Toast.lua)
     text = {},           -- [questID] = { description, objective, completion, progress }: what the quest windows showed
     learned = {},        -- [questID] = { name, zone, level, factions seen, i = { giver, giverName, map, x, y,
                          --   ender, enderName, before, class } }: quests the list hasn't got, met in game

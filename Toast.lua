@@ -4,7 +4,7 @@ local _, ns = ...
 -- turn-in closes a ring (the zone, its continent or group, or the whole Lorebound count) a bigger banner
 -- instead: the ring sweeps shut, a halo bursts, sparks fly out, a fanfare plays and the badge it earns
 -- (Badge.lua) takes the ring's place. Our own frame on UIParent, built the first time it's needed;
--- clicking it opens the journal on that zone.
+-- clicking it opens the journal on that zone, dragging it moves where toasts appear (ns.db.toastPoint).
 
 local Toast = {}
 ns.Toast = Toast
@@ -13,7 +13,7 @@ local HOLD, BIG_HOLD = 6, 10 -- seconds on screen before fading (held while the 
 local BEAT = 0.45            -- the pause between the toast arriving and its ring moving
 local MOVE, SWEEP = 1.4, 2.0 -- seconds the ring ticks up, and sweeps shut from empty when it closes
 local SPARKS = 16
-local TOP = -140             -- the toast's place: this far down from the top of the screen
+local TOP = -140             -- the toast's place unless dragged: this far down from the top of the screen
 local SLIDE = 44             -- how far above it it starts, sliding down into place
 local BIG_TITLE = _G.Game24Font and "Game24Font" or "GameFontNormalHuge"
 local frame, fadeTimer
@@ -32,10 +32,24 @@ local function Hold(seconds)
     fadeTimer = C_Timer.NewTimer(seconds, FadeOut)
 end
 
+-- Where its top sits, from the top middle of the screen.
+local function Spot()
+    local saved = ns.db.toastPoint
+    if saved then return saved[1], saved[2] end
+    return 0, TOP
+end
+
+function Toast.Place()
+    if not frame or frame.moving then return end
+    local x, y = Spot()
+    frame:ClearAllPoints()
+    frame:SetPoint("TOP", UIParent, "TOP", x, y)
+end
+
 local function Build()
     frame = CreateFrame("Button", "LoreboundToast", UIParent, "BackdropTemplate")
     frame:SetFrameStrata("DIALOG") -- over the journal (HIGH), which it often sits on
-    frame:SetPoint("TOP", UIParent, "TOP", 0, TOP)
+    Toast.Place()
     frame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
         edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 },
@@ -43,6 +57,24 @@ local function Build()
     frame:SetBackdropColor(0.03, 0.03, 0.05, 0.94)
     frame:SetBackdropBorderColor(0.32, 0.32, 0.38, 1)
     frame:RegisterForClicks("LeftButtonUp")
+    -- Dragged (a drag is never a click): toasts appear there from now on.
+    frame:SetMovable(true)
+    frame:SetClampedToScreen(true)
+    if frame.SetDontSavePosition then frame:SetDontSavePosition(true) end -- ns.db keeps it
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", function(self)
+        self:SetScript("OnUpdate", nil) -- the slide stops where it is
+        self.moving = true
+        self:StartMoving()
+    end)
+    frame:SetScript("OnDragStop", function(self)
+        if not self.moving then return end -- hidden mid-drag: OnHide let go of it already
+        self:StopMovingOrSizing()
+        self.moving = false
+        local scale = self:GetEffectiveScale() / UIParent:GetEffectiveScale()
+        ns.db.toastPoint = { self:GetCenter() * scale - UIParent:GetWidth() / 2, self:GetTop() * scale - UIParent:GetHeight() }
+        Toast.Place()
+    end)
     frame:SetScript("OnClick", function(self)
         self:Hide()
         if self.zone then ns.Journal:Open(self.zone) end
@@ -222,10 +254,12 @@ local function Build()
     frame.fade = fade
     -- The slide: the anchor itself eased down, so nothing snaps back when it ends.
     frame.slideTo = function(self, elapsed)
+        if self.moving then return self:SetScript("OnUpdate", nil) end -- a new toast while it's held: it stays put
         self.slid = math.min(1, (self.slid or 0) + elapsed / 0.45)
         local eased = 1 - (1 - self.slid) ^ 3
         self:ClearAllPoints()
-        self:SetPoint("TOP", UIParent, "TOP", 0, TOP + SLIDE * (1 - eased))
+        local x, y = Spot()
+        self:SetPoint("TOP", UIParent, "TOP", x, y + SLIDE * (1 - eased))
         if self.slid >= 1 then self:SetScript("OnUpdate", nil) end
     end
 
@@ -313,8 +347,11 @@ local function Build()
         frame.big.onDone = nil
         frame.raysTurn:Stop()
         frame:SetScript("OnUpdate", nil)
-        frame:ClearAllPoints()
-        frame:SetPoint("TOP", UIParent, "TOP", 0, TOP)
+        if frame.moving then -- closed mid-drag
+            frame:StopMovingOrSizing()
+            frame.moving = false
+        end
+        Toast.Place()
         celebrating = false
         local queued = waiting
         waiting = nil

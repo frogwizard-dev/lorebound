@@ -15,7 +15,7 @@ Lorebound tracks every quest in WoW Forever, zone by zone, and shows what's left
 - A zone's page has three rings over its fully revealed map: the zone, its continent and your whole Lorebound count.
 - Its quests are sorted the way you'd use them: in your quest log, available now, coming up, done, and locked out.
 - Click a quest for its page: objectives, story, its storyline and Forever's own rewards (the choices, items, money and experience, as Forever's servers give them).
-- Search every quest by name, and resize or scale the window from its corner.
+- Search every quest by name, and resize or scale the window from its corner. Drag the window, or a toast, to move it.
 
 ## Knows when you're locked out
 

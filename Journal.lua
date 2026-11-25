@@ -1006,7 +1006,7 @@ local function BuildInspect()
     view:SetPoint("TOPLEFT", 4, -4)
     view:SetPoint("BOTTOMRIGHT", -4, 4)
     view:SetFrameLevel(content:GetFrameLevel() + 45)
-    view:EnableMouse(true)
+    Journal.MovesWindow(view)
     view:EnableMouseWheel(true)
     view:SetScript("OnMouseWheel", function() end) -- not the wall underneath
     view:Hide()
@@ -1291,12 +1291,35 @@ local function SavePoint()
     ns.db.point = { point, relative, x, y }
 end
 
--- Size, scale and place back to how they started.
+local moving = false
+local function StartMoving()
+    moving = true
+    frame:StartMoving()
+end
+-- Also when the window closes mid-drag (Escape), whose drag stop may never come.
+local function StopMoving()
+    if not moving then return end
+    moving = false
+    frame:StopMovingOrSizing()
+    SavePoint()
+end
+
+-- Dragging this part of the window moves it (the title bar, the header, a badge's or a quest's page).
+function Journal.MovesWindow(region)
+    region:EnableMouse(true)
+    region:RegisterForDrag("LeftButton")
+    region:SetScript("OnDragStart", StartMoving)
+    region:SetScript("OnDragStop", StopMoving)
+end
+
+-- Size, scale and place back to how they started, and the toast back in its place.
 function Journal:ResetWindow()
     ns.db.point = { unpack(ns.defaults.point) }
     ns.db.size = { unpack(ns.defaults.size) }
     ns.db.scale = ns.defaults.scale
+    ns.db.toastPoint = nil
     self:Place()
+    ns.Toast.Place()
 end
 
 -- The largest scale the window fits the screen at, and the largest size at its scale.
@@ -1451,6 +1474,13 @@ local function BuildSettings()
     testToast:SetText("Test toast")
     testToast:SetPoint("TOPLEFT", sound, "BOTTOMLEFT", 4, -8)
     testToast:SetScript("OnClick", function() ns.Toast.Test(false) end)
+    testToast:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Test toast")
+        GameTooltip:AddLine("Drag the toast to where you want them.", 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    testToast:SetScript("OnLeave", GameTooltip_Hide)
     local testFanfare = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     testFanfare:SetSize(98, 22)
     testFanfare:SetText("Test fanfare")
@@ -1469,7 +1499,7 @@ local function BuildSettings()
     bigger:SetScript("OnClick", function() Journal:SetScale(frame:GetScale() + SCALE_STEP) end)
     local reset = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     reset:SetSize(200, 22)
-    reset:SetText("Window back to normal")
+    reset:SetText("Windows back to normal")
     reset:SetPoint("TOPLEFT", smaller, "BOTTOMLEFT", 0, -6)
     reset:SetScript("OnClick", function() Journal:ResetWindow() end)
     panel.items = { toasts, sound, testToast, testFanfare, smaller, bigger, reset } -- in order, for the controller (Pad.lua)
@@ -1490,6 +1520,7 @@ local function BuildHeader(content)
     header:SetPoint("TOPRIGHT", -4, -4)
     header:SetHeight(HEADER_H)
     header:SetClipsChildren(true)
+    Journal.MovesWindow(header)
     local back = header:CreateTexture(nil, "BACKGROUND", nil, -8)
     back:SetAllPoints()
     back:SetColorTexture(0.05, 0.05, 0.07, 1)
@@ -1678,12 +1709,7 @@ local function Build()
     frame:SetMovable(true)
     frame:SetResizable(true)
     if frame.SetDontSavePosition then frame:SetDontSavePosition(true) end -- ns.db keeps it (Place)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        SavePoint()
-    end)
+    Journal.MovesWindow(frame)
     frame:Hide()
     tinsert(UISpecialFrames, "LoreboundFrame") -- Escape closes it
     if frame.SetTitle then frame:SetTitle("Lorebound") end
@@ -1814,6 +1840,7 @@ local function Build()
         PlaySound(SOUNDKIT.IG_SPELLBOOK_OPEN or 829)
     end)
     frame:SetScript("OnHide", function()
+        StopMoving()
         events:UnregisterAllEvents()
         if refreshTimer then
             refreshTimer:Cancel()

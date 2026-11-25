@@ -162,7 +162,13 @@ local function Build()
     panel:SetPoint("CENTER", 0, 40)
     panel:SetFrameStrata("DIALOG")
     panel:SetToplevel(true)
+    panel:SetClampedToScreen(true)
     panel:EnableMouse(true)
+    panel:SetMovable(true) -- dragged anywhere: it stays there until the next reload
+    if panel.SetDontSavePosition then panel:SetDontSavePosition(true) end
+    panel:RegisterForDrag("LeftButton")
+    panel:SetScript("OnDragStart", panel.StartMoving)
+    panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
     panel:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
         edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 },
@@ -235,6 +241,7 @@ local function Build()
     close:SetText("Close")
     close:SetScript("OnClick", function() panel:Hide() end)
     panel:SetScript("OnHide", function()
+        panel:StopMovingOrSizing() -- closed mid-drag (Escape)
         panel.box:ClearFocus()
         panel.where:ClearFocus()
     end)

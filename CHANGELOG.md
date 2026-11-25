@@ -1,5 +1,12 @@
 # Lorebound
 
+## 0.3.6
+
+- **Move the windows**: the journal moves when you drag its title bar, the big header across its top, a badge's
+  close-up or a quest's page, and it stays where you leave it. Drag a turn-in toast and the toasts after it
+  show up in the same spot (Test toast in the settings shows one to move). The Share quests window can be
+  dragged as well. "Windows back to normal" in the settings puts the journal and the toast back.
+
 ## 0.3.5
 
 - **A click opens the quest page**: clicking a quest in the journal (or A on a controller) opens its page straight away;
