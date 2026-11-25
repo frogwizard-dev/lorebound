@@ -13,9 +13,9 @@ local _, ns = ...
 -- buttons is held (its release would be lost), and are let go a frame after the journal closes (not
 -- inside Blizzard's window code) and the moment a fight starts, when the journal closes too.
 --
---   D-pad up/down     zones (the page follows), quests, or rows of the overview
+--   D-pad up/down     zones (the page follows), quests and their headings, or rows of the overview
 --   D-pad right / A   into the zone's quests (or the overview's badges); A opens what's chosen: a quest's
---                     page (Quest.lua takes the keys while that's up)
+--                     page (Quest.lua takes the keys while that's up), or folds or unfolds a heading
 --   D-pad left / B    back; B closes a badge, the giver map or the settings, then the journal
 --   X                 show the quest giver (on a zone or a badge: pin or unpin it)
 --   Y                 locked-out quests on/off (on the overview: the settings)
@@ -33,7 +33,7 @@ local frame                   -- the journal
 local bound = false
 local focus = "nav"           -- "nav", "list" (a zone's quests), "wall" (the overview) or "settings"
 local navIndex, navData = 0, nil  -- 0 is the overview button, then the zone list's rows
-local listIndex, listId = 1, nil
+local listIndex, listId = 1, nil -- listId: the row's key (ListKey), found again after a redraw
 local wallIndex, wallCol, wallKey = 1, 1, nil  -- wallKey: the medal's zone, or its special's kind..value
 local comboAt = 0             -- when LT + L3 last fired: that LT press isn't a page up
 local settingsIndex = 1
@@ -108,33 +108,39 @@ local function RefindNav()
     navData = Data(list, navIndex)
 end
 
--- The next quest row (not a heading) from index in direction step, or nil.
+-- A list row the pad stops on: a quest, or a heading that folds (a section or a chain), by a key that
+-- stays the same when the list is redrawn.
+local function ListKey(data)
+    if not data then return nil end
+    if data.id then return data.id end
+    if data.chainHead then return "chain" .. data.chainHead end
+    if (data.section or 0) ~= 0 then return "section" .. data.section end
+    return nil
+end
+
+-- The next row the pad stops on from index in direction step, or nil.
 local function NextQuest(index, step)
     local size = Size(frame.questList)
     index = index + step
     while index >= 1 and index <= size do
-        local data = Data(frame.questList, index)
-        if data and data.id then return index end
+        if ListKey(Data(frame.questList, index)) then return index end
         index = index + step
     end
     return nil
 end
 
--- The quest the pad was on, found again after the list was redrawn (else the nearest quest).
+-- The row the pad was on, found again after the list was redrawn (else the nearest one).
 local function RefindList()
-    local current = Data(frame.questList, listIndex)
-    if current and current.id and current.id == listId then return end
+    if listId and ListKey(Data(frame.questList, listIndex)) == listId then return end
     for i = 1, Size(frame.questList) do
-        local data = Data(frame.questList, i)
-        if data.id and data.id == listId then
+        if listId and ListKey(Data(frame.questList, i)) == listId then
             listIndex = i
             return
         end
     end
     listIndex = math.min(listIndex, Size(frame.questList))
     listIndex = NextQuest(listIndex - 1, 1) or NextQuest(listIndex + 1, -1) or 1
-    local data = Data(frame.questList, listIndex)
-    listId = data and data.id
+    listId = ListKey(Data(frame.questList, listIndex))
 end
 
 local function WallEntries(index)
@@ -295,7 +301,7 @@ local function EnterList()
     local first = NextQuest(0, 1)
     if not first then return end
     focus, listIndex = "list", first
-    listId = Data(frame.questList, first).id
+    listId = ListKey(Data(frame.questList, first))
     ScrollTo(frame.questList, listIndex)
     Pad.Mark()
 end
@@ -305,7 +311,7 @@ local function MoveList(step)
     for _ = 1, math.abs(step) do index = NextQuest(index, step > 0 and 1 or -1) or index end
     if index == listIndex then return end
     listIndex = index
-    listId = Data(frame.questList, index).id
+    listId = ListKey(Data(frame.questList, index))
     ScrollTo(frame.questList, listIndex)
     Pad.Mark()
 end
@@ -408,7 +414,11 @@ local PRESS = {
             if item then item:Click() end
         elseif focus == "list" then
             local id = Quest()
-            if id then ns.QuestPage.Show(id) end
+            if id then
+                ns.QuestPage.Show(id)
+            else
+                ns.Journal:ToggleFold(Data(frame.questList, listIndex)) -- a heading
+            end
         elseif focus == "wall" then
             local medal = Medal()
             if medal then ns.Journal:Inspect(medal.special or { "zone", medal.zone }) end

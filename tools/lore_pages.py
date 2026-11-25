@@ -248,7 +248,7 @@ def write(rows, extras, I, chain_of, shared_text=None, journal_rewards=None, sha
             "objective": forever["objective"] if forever else game_text(row[I["objective"]]),
             "needs": forever["needs"] if forever else [],
             "same": same,
-            "start": [row[I["starter"]], row[I["map"]], row[I["x"]], row[I["y"]]],
+            "start": [row[I["starter"]], row[I["map"]], row[I["x"]], row[I["y"]]] + ([row[I["starterFrom"]]] if row[I["starterFrom"]] else []),
             "end": [row[I["finisher"]]] + list(extras.get(qid, {}).get("end") or (None, None, None)),
             "chain": chain_of.get(qid, []),
         }

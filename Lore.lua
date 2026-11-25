@@ -457,9 +457,84 @@ local function Entry(need)
     return state == LOCKED and "locked" or "hidden", id
 end
 
+local followers -- [questID] = { quests that need it (needsAll or needsAny) }, made the first time OnTheWay asks
+
+local function AddFollowers(id, list)
+    for _, need in ipairs(list or EMPTY) do
+        need = math.abs(need)
+        followers[need] = followers[need] or {}
+        table.insert(followers[need], id)
+    end
+end
+
+local function Followers(id)
+    if not followers then
+        followers = {}
+        for other, row in pairs(quests) do
+            AddFollowers(other, row[F.needsAll])
+            AddFollowers(other, row[F.needsAny])
+        end
+    end
+    return followers[id] or EMPTY
+end
+
+-- Whether a mask names a classic race of your side.
+local function OnMySide(mask)
+    for _, bit in ipairs(FACTION_BITS[me.faction]) do
+        if Has(mask, bit) then return true end
+    end
+    return false
+end
+
+-- Whether quest id is your way on from need: not when your race has its own step after it (the Skyborne hunter's
+-- Training the Beast, not the Night Elf's Taming the Beast), nor when it splits into several races' own steps
+-- (Furen's Armor leads to a Human's, a Night Elf's and a Dwarf's or Gnome's): which is yours isn't known.
+local function WayOn(need, id)
+    local branches = 0
+    for _, after in ipairs(Followers(need)) do
+        local races = quests[after] and quests[after][F.races]
+        if races then
+            if Has(races, me.raceBit) then
+                if after ~= id then return false end
+            elseif not RaceOK(races) and OnMySide(races) then
+                branches = branches + 1
+            end
+        end
+    end
+    return branches <= 1
+end
+
+-- A class quest in the list, done or in your log, that leads on to quest id (a starting zone's first quest, which
+-- leads to every race's own level 1 class letter, isn't one).
+local function Reaching(list, id)
+    for _, need in ipairs(list or EMPTY) do
+        need = math.abs(need)
+        if quests[need] and quests[need][F.classes] and (IsDone(need) or active[need]) and WayOn(need, id) then
+            return true
+        end
+    end
+    return false
+end
+
+-- A class quest the list gives only classic races (the Tauren's Trial of the Sea Lion), for one of Forever's races
+-- of that class who is on its way: a class quest it needs done or in the log. Never when Forever gives this race
+-- its own version (an exclusive partner naming the race: the Skyborne's Great Windborne Cat Spirit), and a quest
+-- whose start isn't reached stays hidden (the Tauren's Moonglade trips, which Forever replaces for the Skyborne).
+local function OnTheWay(id, row)
+    if not me.raceBit or me.raceBit < 8 or not me.faction or not me.classBit then return false end
+    if not row[F.classes] or not Has(row[F.classes], me.classBit) then return false end
+    if not OnMySide(row[F.races]) then return false end
+    for _, other in ipairs(row[F.exclusiveTo] or EMPTY) do
+        local races = quests[other] and quests[other][F.races]
+        if races and Has(races, me.raceBit) then return false end
+    end
+    return Reaching(row[F.needsAll], id) or Reaching(row[F.needsAny], id)
+end
+
 -- The status, and why (a code and its arguments) for locked out and later.
 local function Work(id, row)
-    if row[F.races] and not RaceOK(row[F.races]) then return HIDDEN end
+    if active[id] then return ACTIVE end -- in your log: yours, whatever the list says
+    if row[F.races] and not RaceOK(row[F.races]) and not OnTheWay(id, row) then return HIDDEN end
     -- A learned profession quest: only for characters that have met it (the skill it needs is unknown).
     if row[F.mine] and not ns.charDB.met[id] then return HIDDEN end
     if row[F.classes] and me.classBit and not Has(row[F.classes], me.classBit) then return HIDDEN end
@@ -471,7 +546,6 @@ local function Work(id, row)
         if not rank then return HIDDEN end
         short = rank < (skill[2] or 0)
     end
-    if active[id] then return ACTIVE end
     if OtherRacesVersion(id, row) then return HIDDEN end
 
     -- Prerequisites that rule it out, and the first one still to do.

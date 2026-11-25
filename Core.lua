@@ -12,8 +12,9 @@ ns.F = {
     classes = 9, needsAll = 10, needsAny = 11, exclusiveTo = 12, nextInChain = 13, breadcrumbFor = 14,
     parent = 15, skill = 16, minRep = 17, maxRep = 18, maxLevel = 19, untilDone = 20, faction = 21,
     finisher = 22, map = 23, x = 24, y = 25,
-    mine = 26, -- not from the list: a learned profession quest, only for characters that met it
+    starterFrom = 26, -- where a quest-starting item comes from ("Dropped by Rockjaw mobs in Dun Morogh")
     chain = 27, -- { first quest, this one's step, steps in all } for a quest in a chain
+    mine = 28, -- not from the list: a learned profession quest, only for characters that met it
 }
 
 ns.defaults = {
@@ -23,6 +24,8 @@ ns.defaults = {
     showLocked = false,  -- list the quests you're locked out of
     filter = "todo",     -- the quest list: "todo", "done" or "all"
     collapsed = {},      -- [group] = true: folded in the zone list
+    foldedSections = {}, -- [status] = true: a section of the zone's quests folded (Available now, Done...), in every zone
+    foldedChains = {},   -- [first quest] = true: a chain folded to its heading
     pinned = {},         -- [zone name] = true: pinned to the top of the zone list and the overview
     size = { 980, 640 }, -- the journal's width and height (its resize grip)
     scale = 1,           -- the journal's scale (the grip with Shift held)

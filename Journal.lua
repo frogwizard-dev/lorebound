@@ -420,8 +420,9 @@ local function PeopleLine(row)
     local starter, finisher = row[F.starter], row[F.finisher]
     local parts = {}
     if starter then
-        local kind = row[F.starterKind]
+        local kind, from = row[F.starterKind], row[F.starterFrom]
         parts[#parts + 1] = (kind == 3 and "Starts from %s" or kind == 2 and "Starts at %s" or "Given by %s"):format(starter)
+            .. (from and (" (%s)"):format(from:gsub("^%u", string.lower)) or "")
     end
     if finisher and finisher ~= starter then parts[#parts + 1] = ("turn in to %s"):format(finisher) end
     return table.concat(parts, ", ")
@@ -450,10 +451,22 @@ end
 Journal.SetStatusIcon, Journal.Summary, Journal.Fill, Journal.TITLE_FONT = SetStatusIcon, Summary, Fill, TITLE_FONT
 Journal.NamesWithTicks = NamesWithTicks
 
--- A quest clicked in the list: its page.
+-- A heading of the quest list (a section or a chain) folded or unfolded.
+function Journal:ToggleFold(data)
+    if not data then return end
+    local folded, key = ns.db.foldedChains, data.chainHead
+    if not key then folded, key = ns.db.foldedSections, data.section end
+    if not key or key == 0 then return end
+    folded[key] = not folded[key] or nil
+    self:FillQuests(true)
+end
+
+-- A quest clicked in the list: its page. A heading: folded or unfolded.
 local function QuestRowClick(row)
-    local id = row.data and row.data.id
-    if id then ns.QuestPage.Show(id) end
+    local data = row.data
+    if not data then return end
+    if data.id then return ns.QuestPage.Show(data.id) end
+    Journal:ToggleFold(data)
 end
 
 -- A piece of the line joining a chain's steps: nil hides it, "done" is the green of a finished step.
@@ -490,8 +503,10 @@ local function InitQuestRow(row, data)
     if not row.built then
         row.built = true
         row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+        row.fold = row:CreateTexture(nil, "ARTWORK")
+        row.fold:SetSize(14, 14)
+        row.fold:SetPoint("LEFT", 8, -2)
         row.head = row:CreateFontString(nil, "OVERLAY", "GameFontNormalMed3")
-        row.head:SetPoint("LEFT", 10, -2)
         row.head:SetJustifyH("LEFT")
         row.rule = row:CreateTexture(nil, "ARTWORK")
         row.rule:SetHeight(1)
@@ -533,10 +548,19 @@ local function InitQuestRow(row, data)
     end
     row.data = data
     local isHead = data.section ~= nil or data.chainHead ~= nil
+    local folds = data.chainHead ~= nil or (data.section or 0) ~= 0 -- not "Nothing left to do here"
     row.head:SetShown(isHead)
     row.rule:SetShown(data.section ~= nil)
     for _, part in ipairs(row.parts) do part:SetShown(not isHead) end
-    row:EnableMouse(not isHead)
+    row:EnableMouse(not isHead or folds)
+    row.fold:SetShown(folds)
+    if folds then
+        local folded
+        if data.chainHead then folded = ns.db.foldedChains[data.chainHead] else folded = ns.db.foldedSections[data.section] end
+        row.fold:SetTexture(folded and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+    end
+    row.head:ClearAllPoints()
+    row.head:SetPoint("LEFT", folds and 28 or 10, -2)
     row.progress:SetShown(data.chainHead ~= nil)
     for _, dot in ipairs(row.dots) do dot:Hide() end
     Rail(row.railTop, data.railTop)
@@ -650,6 +674,7 @@ local function InsertBlock(provider, block)
     local place = {} -- each step's number in the whole chain (the heading's dots, the quest page's list)
     for i, id in ipairs(Lore.ChainFor(first)) do place[id] = i end
     provider:Insert({ chainHead = first, label = Lore.Name(steps[1]) or "" })
+    if ns.db.foldedChains[first] then return end
     for i, id in ipairs(steps) do
         local before = steps[i - 1]
         provider:Insert({ id = id, step = place[id] or i, showZone = not block.here[id] or nil,
@@ -696,7 +721,11 @@ function Journal:FillQuests(keepScroll)
             end
         end
         local blocks, held = ChainBlocks(listed, Wanted, ns.db.showLocked)
-        ns.AskRewards(listed) -- what the list doesn't know, from the game
+        local asked = {} -- what the list doesn't know, from the game (not for folded sections)
+        for _, id in ipairs(listed) do
+            if not ns.db.foldedSections[Lore.StatusOf(id)] then asked[#asked + 1] = id end
+        end
+        ns.AskRewards(asked)
         for _, section in ipairs(SECTIONS) do
             local state, label = section[1], section[2]
             if Wanted(state) then
@@ -713,6 +742,7 @@ function Journal:FillQuests(keepScroll)
                         return ia < ib
                     end)
                     provider:Insert({ section = state, label = label, count = #(byStatus[state] or {}) })
+                    if ns.db.foldedSections[state] then entries = {} end
                     for _, entry in ipairs(entries) do
                         if entry.block then
                             InsertBlock(provider, entry.block)

@@ -450,6 +450,7 @@ function questItem(id, { withZone, step } = {}) {
   const reason = status ? reasonOf(id, status) : null
   const objective = field(quest, 'objective')
   const giver = field(quest, 'starter')
+  const from = field(quest, 'starterFrom')
   const finisher = field(quest, 'finisher')
   const place = field(quest, 'map') ? ` at ${field(quest, 'x')}, ${field(quest, 'y')}` : ''
   const needs = [...(field(quest, 'needsAll') || []), ...(field(quest, 'needsAny') || [])].map((need) => {
@@ -465,7 +466,7 @@ function questItem(id, { withZone, step } = {}) {
       ${reason || objective ? `<span class="qline">${esc(reason || objective)}</span>` : ''}
     </summary><div class="more">
       ${objective && reason ? `<p>${esc(objective)}</p>` : ''}
-      ${giver ? `<p>From ${esc(giver)}${esc(place)}${finisher && finisher !== giver ? `, handed in to ${esc(finisher)}` : ''}.</p>` : ''}
+      ${giver ? `<p>From ${esc(giver)}${from ? ` (${esc(from[0].toLowerCase() + from.slice(1))})` : ''}${esc(place)}${finisher && finisher !== giver ? `, handed in to ${esc(finisher)}` : ''}.</p>` : ''}
       ${needs.length ? `<p>Needs first: ${needs.join(', ')}.</p>` : ''}
       <p><a href="${shown.base}/quest/${id}">The whole quest</a> · <a href="https://www.wowhead.com/forever/quest=${id}" target="_blank" rel="noopener">On Wowhead</a></p>
     </div></details></li>`
@@ -633,10 +634,10 @@ function fact(label, value) {
   return value ? `<div class="fact"><dt>${label}</dt><dd>${value}</dd></div>` : ''
 }
 
-function placeText(name, map, x, y) {
+function placeText(name, map, x, y, from) {
   if (!name) return ''
   const zone = shown.zones.find((entry) => entry.map === map)
-  return `${esc(name)}${zone && x != null ? `<br><span class="muted">${esc(zone.name)} ${x}, ${y}</span>` : ''}`
+  return `${esc(name)}${from ? `<br>${esc(from)}` : ''}${zone && x != null ? `<br><span class="muted">${esc(zone.name)} ${x}, ${y}</span>` : ''}`
 }
 
 async function drawQuest(id) {
@@ -695,7 +696,7 @@ async function drawQuest(id) {
   html += '</article><aside class="qside">'
   html += questMap(data, quest)
   html += `<dl class="facts">
-    ${fact('<span class="pin-key start">!</span> Start', data.pickup ? esc(data.pickup) : placeText(data.start[0], data.start[1], data.start[2], data.start[3]))}
+    ${fact('<span class="pin-key start">!</span> Start', data.pickup ? esc(data.pickup) : placeText(data.start[0], data.start[1], data.start[2], data.start[3], data.start[4]))}
     ${fact('<span class="pin-key end">?</span> End', data.turnin ? esc(data.turnin) : placeText(data.end[0], data.end[1], data.end[2], data.end[3]))}
     ${fact('Level', level > 0 ? `${level}${min ? `, from level ${min}` : ''}` : '')}
     ${fact('Side', sideOf(quest).replace('the ', '').replace(/^b/, 'B'))}

@@ -1,5 +1,22 @@
 # Lorebound
 
+## 0.3.7
+
+- **Fold the quest list**: click a heading in a zone's quests to fold it. Section headings like "Available now"
+  or "Done" stay folded in every zone; chain headings like "The Hunter's Way" fold to one line with its dots and
+  count. Click again to open it. On a controller the D-pad stops on headings too, and A folds them.
+- **Quests in your log always show**: whatever the quest data says about race, class or side, a quest you have
+  is listed, counted and found by the search. A Skyborne druid's Trial of the Lake was missing because the old
+  quest data names only Tauren and Night Elves for it.
+- **Class quest chains for Forever's races**: once you're on a class chain the old data gives only to classic
+  races (the druid's Trial of the Lake, Trial of the Sea Lion and Aquatic Form), its next steps show too. Quests
+  Forever replaces with your race's own version (the Great Windborne Cat Spirit, the Skyborne's Moonglade) stay
+  hidden.
+- **Where quest items come from**: a quest started by an item now says where to get it, like "Empty Powder Keg:
+  dropped by Rockjaw mobs in Dun Morogh" or "Chen's Empty Keg: picked up in The Barrens", on the quest list, the
+  quest's page (with a map pin to go to) and the site. That's 125 quests; crafted items and the like have no
+  source in the quest data.
+
 ## 0.3.6
 
 - **Move the windows**: the journal moves when you drag its title bar, the big header across its top, a badge's

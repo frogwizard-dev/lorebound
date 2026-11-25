@@ -87,7 +87,7 @@ NEXT_IN_CHAIN, SPECIAL_FLAGS, PARENT, BREADCRUMB_FOR = 22, 24, 25, 27
 REQ_MAX_LEVEL, UNTIL_COMPLETED = 32, 33
 REPEATABLE = 1  # specialFlags bit 2 is exploration or a scripted objective, not an event: kept
 NPC_NAME, NPC_SPAWNS, NPC_ZONE, NPC_FRIENDLY = 1, 7, 9, 13
-ITEM_NPC_DROPS, ITEM_OBJECT_DROPS, ITEM_VENDORS = 2, 3, 14
+ITEM_NPC_DROPS, ITEM_OBJECT_DROPS, ITEM_ITEM_DROPS, ITEM_VENDORS = 2, 3, 4, 14
 OBJECT_NAME, OBJECT_SPAWNS, OBJECT_ZONE = 1, 4, 5
 
 # QuestSort IDs (stored negated), named by Forever's own QuestSort table.
@@ -120,7 +120,7 @@ SKYBORNE_A, SKYBORNE_H, COMPLETIST_NEW = 2 ** 32, 2 ** 33, 2 ** 26
 # Our row: the field positions Lorebound reads (Core.lua's F table matches these, 1-based in Lua).
 ROW = ["zone", "level", "minLevel", "name", "objective", "starter", "starterKind", "races", "classes",
        "needsAll", "needsAny", "exclusiveTo", "nextInChain", "breadcrumbFor", "parent", "skill",
-       "minRep", "maxRep", "maxLevel", "untilDone", "faction", "finisher", "map", "x", "y"]
+       "minRep", "maxRep", "maxLevel", "untilDone", "faction", "finisher", "map", "x", "y", "starterFrom"]
 I = {name: i for i, name in enumerate(ROW)}
 LINKS_MANY = ("needsAll", "needsAny", "exclusiveTo")
 LINKS_ONE = ("nextInChain", "breadcrumbFor", "parent", "untilDone")
@@ -517,7 +517,7 @@ def write_site_data(version, rows, zone_rows, horde, chain_of):
     os.makedirs(SITE_DATA, exist_ok=True)
     fields = ["zone", "level", "minLevel", "name", "objective", "starter", "starterKind", "races", "classes",
               "needsAll", "needsAny", "breadcrumbFor", "faction", "finisher", "map", "x", "y", "exclusiveTo",
-              "minRep", "chain"]
+              "minRep", "starterFrom", "chain"]
     quests = {}
     for qid in sorted(rows):
         row = rows[qid]
@@ -636,27 +636,104 @@ def build():
             return None
         return 1 if "A" in sides else 2
 
+    def first_spot(spawns, home=None):
+        """(uiMap, x, y) of the first spawn on a map we know (in its home zone first, when given), or Nones."""
+        ordered = sorted(spawns.items()) if spawns is not None else []
+        if home:
+            ordered.sort(key=lambda spawn: zones.top(spawn[0]) != zones.top(home))
+        for area, points in ordered:
+            ui = zones.area_to_map.get(area)
+            point = points and points[1]
+            if ui and point is not None and point[1] and point[1] > 0:
+                return (ui, round(point[1], 1), round(point[2], 1))
+        return (None, None, None)
+
+    def in_zones(areas):
+        """' in A', ' in A and B' or ' in A, B and elsewhere' (most first), or '' when none is known."""
+        counts = {}
+        for area in areas:
+            row = zones.areas.get(zones.top(area)) if area else None
+            if row and row[1]:
+                counts[row[1]] = counts.get(row[1], 0) + 1
+        names = sorted(counts, key=lambda name: -counts[name])
+        if len(names) > 2:
+            return " in %s, %s and elsewhere" % tuple(names[:2])
+        return " in " + " and ".join(names) if names else ""
+
+    def shared_prefix(names):
+        """The leading words two thirds of these names share (Rockjaw, Dark Iron), or None."""
+        for words in (2, 1):
+            counts = {}
+            for name in names:
+                if len(name.split()) > words:
+                    prefix = " ".join(name.split()[:words])
+                    counts[prefix] = counts.get(prefix, 0) + 1
+            best = max(counts, key=counts.get, default=None)
+            if best and counts[best] * 3 >= len(names) * 2:
+                return best
+        return None
+
+    def named(names):
+        names = list(dict.fromkeys(names))
+        if len(names) <= 2:
+            return " and ".join(names)
+        return "%s, %s and %d more" % (names[0], names[1], len(names) - 2)
+
+    def item_source(item):
+        """Where a quest-starting item comes from ("Dropped by Rockjaw mobs in Dun Morogh") and a place to pin
+        for it, or (None, Nones) when the export doesn't say."""
+        def rows(table, ids):
+            return [table[i] for i in seq(ids) if table[i] is not None and table[i][1]]
+        droppers, chests, sellers = (rows(npcs, item[ITEM_NPC_DROPS]), rows(objects, item[ITEM_OBJECT_DROPS]),
+                                     rows(npcs, item[ITEM_VENDORS]))
+        holders = rows(items, item[ITEM_ITEM_DROPS])
+        parts, spot = [], (None, None, None)
+        if droppers:
+            names = list(dict.fromkeys(row[1] for row in droppers))
+            prefix = len(names) > 2 and shared_prefix(names)
+            many = len(names) > 12 and not prefix  # a world drop: no one place to send anyone
+            who = prefix + " mobs" if prefix else "many mobs" if many else named(names)
+            parts.append("dropped by " + who + in_zones(row[NPC_ZONE] for row in droppers))
+            for row in droppers if not many else []:
+                spot = first_spot(row[NPC_SPAWNS], row[NPC_ZONE])
+                if spot[0] is not None:
+                    break
+        if chests:
+            own = [row[1] for row in chests] == [item[1]]  # the item lies about as itself (Chen's Empty Keg)
+            parts.append(("picked up" if own else "found in " + named(row[1] for row in chests))
+                         + in_zones(row[OBJECT_ZONE] for row in chests))
+            for row in chests if spot[0] is None else []:
+                spot = first_spot(row[OBJECT_SPAWNS], row[OBJECT_ZONE])
+                if spot[0] is not None:
+                    break
+        if sellers:
+            parts.append("sold by " + named(row[1] for row in sellers) + in_zones(row[NPC_ZONE] for row in sellers))
+            for row in sellers if spot[0] is None else []:
+                spot = first_spot(row[NPC_SPAWNS], row[NPC_ZONE])
+                if spot[0] is not None:
+                    break
+        if holders:
+            parts.append("found in " + named(row[1] for row in holders))
+        text = "; ".join(parts)
+        return (text[:1].upper() + text[1:] or None), spot
+
     def giver(started):
-        """(name, kind, faction, map, x, y): kind None NPC, 2 object, 3 item; faction 1 A, 2 H."""
+        """(name, kind, faction, map, x, y, from): kind None NPC, 2 object, 3 item; faction 1 A, 2 H; from: where
+        an item comes from."""
         if started is None:
-            return (None,) * 6
+            return (None,) * 7
         for kind, table in ((1, npcs), (2, objects), (3, items)):
             for i in seq(started[kind]):
                 row = table[i]
                 if row is None or not row[1]:
                     continue
                 faction = side(started)
-                where = (None, None, None)
-                spawns = row[NPC_SPAWNS] if kind == 1 else row[OBJECT_SPAWNS] if kind == 2 else None
-                if spawns is not None:
-                    for area, points in sorted(spawns.items()):
-                        ui = zones.area_to_map.get(area)
-                        point = points and points[1]
-                        if ui and point is not None and point[1] and point[1] > 0:
-                            where = (ui, round(point[1], 1), round(point[2], 1))
-                            break
-                return (row[1], None if kind == 1 else kind, faction) + where
-        return (None,) * 6
+                if kind == 3:
+                    source, where = item_source(row)
+                    return (row[1], kind, faction) + where + (source,)
+                where = first_spot(row[NPC_SPAWNS] if kind == 1 else row[OBJECT_SPAWNS])
+                return (row[1], None if kind == 1 else kind, faction) + where + (None,)
+        return (None,) * 7
 
     def spots(field):
         """Where a quest's objectives are, for its page's map: { uiMap: [[x, y], ...] } from the spawns of its
@@ -710,7 +787,7 @@ def build():
     def make_row(field, zone):
         """Our row for a QuestieDB-style quest (q may be a dict of field overrides over a lupa row)."""
         objective = " ".join(text for text in seq(field(OBJ_TEXT)) if isinstance(text, str) and text).strip() or None
-        name, kind, faction, ui, x, y = giver(field(STARTED_BY))
+        name, kind, faction, ui, x, y, source = giver(field(STARTED_BY))
         row = [None] * len(ROW)
         row[I["zone"]] = zone
         row[I["level"]] = field(QUEST_LEVEL)
@@ -719,11 +796,12 @@ def build():
         row[I["objective"]] = objective
         row[I["starter"]], row[I["starterKind"]], row[I["faction"]] = name, kind, faction
         row[I["map"]], row[I["x"]], row[I["y"]] = ui, x, y
+        row[I["starterFrom"]] = source
         row[I["races"]] = field(RACES) or None
         if row[I["races"]]:
             row[I["faction"]] = None  # the race mask says who may take it; a giver's side can contradict it
         elif row[I["faction"]] is None:
-            row[I["faction"]] = capital_side(ui, zone)
+            row[I["faction"]] = capital_side(None if kind == 3 else ui, zone)  # an item's spot is a drop, not a giver
         row[I["classes"]] = field(CLASSES) or None
         row[I["needsAll"]] = seq(field(PRE_GROUP)) or None
         row[I["needsAny"]] = seq(field(PRE_SINGLE)) or None
@@ -778,7 +856,8 @@ def build():
             continue
         zone = zones.of(quest[ZONE_OR_SORT])
         if zone is None and not quest[ZONE_OR_SORT]:  # the export gives it no zone at all: where its giver stands
-            zone = zone_of_map(giver(quest[STARTED_BY])[3] or giver(quest[FINISHED_BY])[3])
+            started = giver(quest[STARTED_BY])
+            zone = zone_of_map((started[3] if started[1] != 3 else None) or giver(quest[FINISHED_BY])[3])
             placed_by_giver += zone is not None
         if zone is None:
             dropped["seasonal or no zone"] += 1
@@ -787,7 +866,7 @@ def build():
                 unplaced.add(qid)  # no zone, or one the game doesn't know: the dungeon journal may
             continue
         row = make_row(lambda field: quest[field], zone)
-        extras[qid] = {"end": giver(quest[FINISHED_BY])[3:], "spots": spots(lambda field: quest[field])}  # for its page
+        extras[qid] = {"end": giver(quest[FINISHED_BY])[3:6], "spots": spots(lambda field: quest[field])}  # for its page
         rows[qid] = row
         fix = horde_fix[qid]
         if fix is not None:
@@ -1158,7 +1237,7 @@ def build():
         "-- Generated by tools/make_lore.py from Zquest's QuestieDB export (GPL-3.0), Quest Completist's",
         "-- Forever data and the game's own quest and zone tables. Don't edit by hand.",
         "-- zones[i] = { name, group, uiMapID, journal art (a dungeon's or raid's painting, a file ID) }",
-        "-- quests[id] = { " + ", ".join(ROW) + ", (26 unused), chain = { first quest, step, steps } }",
+        "-- quests[id] = { " + ", ".join(ROW) + ", chain = { first quest, step, steps } }",
         "-- horde[id] = { [field] = value or false }: the Horde view's differences.",
         "-- skip = { id, ... }: quests left out on purpose (repeatable, seasonal, blacklisted), never learned.",
         "-- wantText = { id, ... }: quests whose Forever text isn't known yet (Share.lua asks players for it).",
@@ -1176,8 +1255,8 @@ def build():
     for qid in sorted(rows):
         row = list(rows[qid])
         chain = chain_field(qid, chain_of)
-        if chain:  # field 27 (26 is the addon's own, for learned quests)
-            row += [None, chain]
+        if chain:  # field 27
+            row.append(chain)
         while row and row[-1] is None:
             row.pop()
         lines.append("[%d]=%s," % (qid, lua_value(row)))

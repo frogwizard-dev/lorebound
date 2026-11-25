@@ -39,7 +39,7 @@ def run(source, done, active, race, cls, level, faction):
     to_set = lua.eval("function(t) local out = {} for _, v in ipairs(t) do out[v] = true end return out end")
     lua.eval("function(...) " + stubs + " end")(to_set(lua.table_from(done)), to_set(lua.table_from(active)), race, cls, level, faction)
     loader = lua.eval("function(src) local f = assert(load(src)) f(nil, ns) end")
-    lua.execute("ns.F = { zone = 1, level = 2, minLevel = 3, name = 4, objective = 5, starter = 6, starterKind = 7, races = 8, classes = 9, needsAll = 10, needsAny = 11, exclusiveTo = 12, nextInChain = 13, breadcrumbFor = 14, parent = 15, skill = 16, minRep = 17, maxRep = 18, maxLevel = 19, untilDone = 20, faction = 21, finisher = 22, map = 23, x = 24, y = 25, mine = 26, chain = 27 }")
+    lua.execute("ns.F = { zone = 1, level = 2, minLevel = 3, name = 4, objective = 5, starter = 6, starterKind = 7, races = 8, classes = 9, needsAll = 10, needsAny = 11, exclusiveTo = 12, nextInChain = 13, breadcrumbFor = 14, parent = 15, skill = 16, minRep = 17, maxRep = 18, maxLevel = 19, untilDone = 20, faction = 21, finisher = 22, map = 23, x = 24, y = 25, starterFrom = 26, chain = 27, mine = 28 }")
     loader(source)
     lua.execute("ns.Lore.Init(LoreboundData) ns.Lore.Refresh()")
     result = lua.eval("""function()

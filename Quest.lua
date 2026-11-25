@@ -296,7 +296,9 @@ local function Side(id)
         if value and value ~= "" then facts[#facts + 1] = ("|cffffd100%s|r\n%s"):format(label, value) end
     end
     local details = not Lore.IsLearned(id) and ns.QuestText(id, select(2, Lore.Zone(row[F.zone]))) or {}
-    Fact("Start", details.ws or row[F.starter] and (row[F.starter] .. Place(row[F.map], row[F.x], row[F.y])))
+    local from = row[F.starterFrom]
+    Fact("Start", details.ws or row[F.starter]
+        and (row[F.starter] .. (from and "\n" .. from or "") .. Place(row[F.map], row[F.x], row[F.y])))
     Fact("End", details.we or row[F.finisher])
     local level, minLevel = row[F.level], row[F.minLevel]
     Fact("Level", level and level > 0 and (minLevel and ("%d, from level %d"):format(level, minLevel) or tostring(level)))
