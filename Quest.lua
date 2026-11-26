@@ -296,9 +296,27 @@ local function Side(id)
         if value and value ~= "" then facts[#facts + 1] = ("|cffffd100%s|r\n%s"):format(label, value) end
     end
     local details = not Lore.IsLearned(id) and ns.QuestText(id, select(2, Lore.Zone(row[F.zone]))) or {}
-    local from = row[F.starterFrom]
-    Fact("Start", details.ws or row[F.starter]
-        and (row[F.starter] .. (from and "\n" .. from or "") .. Place(row[F.map], row[F.x], row[F.y])))
+    local from, item = row[F.starterFrom], details.sd
+    -- A quest-starting item: the item itself (its tooltip on hover), then what has it, by name.
+    local showItem = item ~= nil and item.i ~= nil
+    view.item.id = showItem and item.i or nil
+    view.item:SetShown(showItem)
+    view.facts:ClearAllPoints()
+    if showItem then
+        view.facts:SetPoint("TOPLEFT", view.item, "BOTTOMLEFT", 0, -10)
+        view.item.icon:SetTexture(C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(item.i) or 134400) -- 134400: the question mark
+        view.item.name:SetText(("|cffffd100Starts from|r\n%s"):format(row[F.starter] or ("Item " .. item.i)))
+        for _, source in ipairs(item.by or {}) do
+            local label, names, count = source[1], source[2] or {}, source[3] or 0
+            local list = table.concat(names, ", ")
+            if #names > 0 and count > #names then list = list .. (", and %d more"):format(count - #names) end
+            Fact(label, list ~= "" and list or from)
+        end
+    else
+        view.facts:SetPoint("TOPLEFT")
+        Fact("Start", details.ws or row[F.starter]
+            and (row[F.starter] .. (from and "\n" .. from or "") .. Place(row[F.map], row[F.x], row[F.y])))
+    end
     Fact("End", details.we or row[F.finisher])
     local level, minLevel = row[F.level], row[F.minLevel]
     Fact("Level", level and level > 0 and (minLevel and ("%d, from level %d"):format(level, minLevel) or tostring(level)))
@@ -319,7 +337,11 @@ local function Side(id)
     if Lore.IsLearned(id) then Fact("Learned in game", "Not in Lorebound's list yet: share it from the overview.") end
     Fact("Quest ID", tostring(id))
     view.facts:SetText(table.concat(facts, "\n\n"))
-    view.giver:SetEnabled(row[F.map] ~= nil)
+    local drops = item ~= nil and item.m ~= nil and item.at ~= nil
+    view.giver:SetEnabled(drops or row[F.map] ~= nil)
+    local dropped = drops and item.by and item.by[1] and item.by[1][1] == "Dropped by"
+    view.giver:SetText(dropped and "Show where it drops" or drops and "Show where it is"
+        or row[F.starterKind] == 3 and "Show on the map" or "Show quest giver")
 
     for _, line in ipairs(pool.chain) do line:Hide() end
     local chainFirst = Lore.ChainOf(id)
@@ -328,7 +350,7 @@ local function Side(id)
     local steps = ChainFor(chainFirst, id)
     view.chainHead:SetText(("Quest chain  |cff9a9a9a%d quests|r"):format(#steps))
     -- As many rows as fit the column under the facts, around the quest shown.
-    local room = view.side:GetHeight() - view.facts:GetStringHeight() - 14 - 22 - 18 - 18 - 36
+    local room = view.side:GetHeight() - view.facts:GetStringHeight() - (view.item:IsShown() and 44 or 0) - 14 - 22 - 18 - 18 - 36
     local rows = math.max(3, math.min(MAX_CHAIN, math.floor(room / 20)))
     local at = 1
     for i, step in ipairs(steps) do
@@ -392,6 +414,26 @@ local function Build()
     view.facts = view.side:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     view.facts:SetPoint("TOPLEFT")
     view.facts:SetWidth(SIDE_W)
+    -- A quest-starting item, with its tooltip.
+    view.item = CreateFrame("Button", nil, view.side)
+    view.item:SetSize(SIDE_W, 34)
+    view.item:SetPoint("TOPLEFT")
+    view.item.icon = view.item:CreateTexture(nil, "ARTWORK")
+    view.item.icon:SetSize(32, 32)
+    view.item.icon:SetPoint("LEFT")
+    view.item.name = view.item:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    view.item.name:SetPoint("LEFT", view.item.icon, "RIGHT", 8, 0)
+    view.item.name:SetPoint("RIGHT")
+    view.item.name:SetJustifyH("LEFT")
+    view.item.name:SetSpacing(2)
+    view.item:SetScript("OnEnter", function(self)
+        if not self.id then return end
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:SetItemByID(self.id)
+        GameTooltip:Show()
+    end)
+    view.item:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    view.item:Hide()
     view.facts:SetJustifyH("LEFT")
     view.facts:SetSpacing(2)
     view.giver = CreateFrame("Button", nil, view.side, "UIPanelButtonTemplate")
@@ -448,7 +490,7 @@ function QuestPage.Show(id)
     ns.AskRewardsNow(id, function() -- not known: the game's answer redraws the page
         if current == id and QuestPage.IsShown() then Layout(id, true) end
     end)
-    view.hint:SetText(ns.GamepadUI() and "D-pad up/down: scroll   left/right: the chain\nX: the quest giver   B: back" or "")
+    view.hint:SetText(ns.GamepadUI() and "D-pad up/down: scroll   left/right: the chain\nX: the map   B: back" or "")
     ns.Pad.Mark()
 end
 

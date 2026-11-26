@@ -612,26 +612,40 @@ function questLink(id, text = questName(id)) {
 function questMap(data, quest) {
   const maps = new Set(shown.zones.map((zone) => zone.map).filter(Boolean))
   const zoneMap = (shown.zones[field(quest, 'zone') - 1] || {}).map
-  const order = [data.start[1], ...Object.keys(data.spots || {}).map(Number), data.end[1], zoneMap]
+  const drops = data.drops && data.drops.map && data.drops.at ? data.drops : null // a quest-starting item's sources
+  const order = [drops && drops.map, data.start[1], ...Object.keys(data.spots || {}).map(Number), data.end[1], zoneMap]
   const map = order.find((candidate) => candidate && maps.has(candidate))
   if (!map) return ''
   const pin = (x, y, cls, text) => `<span class="pin ${cls}" style="left:${x}%;top:${y}%">${text}</span>`
   let pins = (data.spots[String(map)] || []).map(([x, y]) => pin(x, y, 'spot', '')).join('')
+  if (drops && drops.map === map) pins += drops.at.map(([x, y]) => pin(x, y, 'spot', '')).join('')
   if (data.end[1] === map && data.end[2] != null) {
     const shared = data.start[1] === map && data.start[2] === data.end[2] && data.start[3] === data.end[3]
     pins += pin(data.end[2] + (shared ? 2.2 : 0), data.end[3], 'end', '?') // beside the ! when it's the same person
   }
-  if (data.start[1] === map && data.start[2] != null) pins += pin(data.start[2], data.start[3], 'start', '!')
+  if (!drops && data.start[1] === map && data.start[2] != null) pins += pin(data.start[2], data.start[3], 'start', '!')
   const name = (shown.zones.find((zone) => zone.map === map) || {}).name || ''
   const figure = (cls) => `<div class="qmap ${cls}"><img src="/art/map-${map}.webp" alt="Map of ${esc(name)}">${pins}</div>`
   return `<button type="button" class="mapbutton" id="openmap" aria-label="Show the map larger">${figure('small')}</button>
     <p class="legend-line"><span class="pin-key start">!</span> Pick up <span class="pin-key end">?</span> Hand in
-    ${Object.keys(data.spots || {}).length ? '<span class="pin-key spot"></span> Objectives' : ''}</p>
+    ${Object.keys(data.spots || {}).length ? '<span class="pin-key spot"></span> Objectives' : ''}
+    ${drops && drops.map === map ? `<span class="pin-key spot"></span> ${drops.by && drops.by[0][0] === 'Dropped by' ? 'Where the item drops' : 'Where the item is'}` : ''}</p>
     <dialog id="bigmap" aria-label="Map of ${esc(name)}"><form method="dialog"><button class="mapbutton" aria-label="Close the map">${figure('big')}</button></form></dialog>`
 }
 
 function fact(label, value) {
   return value ? `<div class="fact"><dt>${label}</dt><dd>${value}</dd></div>` : ''
+}
+
+// A quest-starting item (Wowhead's tooltip on it) and what has it, by name.
+function itemFacts(data) {
+  const { item, by } = data.drops
+  let html = fact('Starts from', `<a href="https://www.wowhead.com/forever/item=${item}" data-wowhead="item=${item}&domain=forever" target="_blank" rel="noopener">${esc(data.start[0] || `Item ${item}`)}</a>`)
+  for (const [label, names, count] of by || []) {
+    const more = count > names.length ? `, and ${count - names.length} more` : ''
+    html += fact(esc(label), names.length ? esc(names.join(', ')) + more : esc(data.start[4] || ''))
+  }
+  return html
 }
 
 function placeText(name, map, x, y, from) {
@@ -696,7 +710,7 @@ async function drawQuest(id) {
   html += '</article><aside class="qside">'
   html += questMap(data, quest)
   html += `<dl class="facts">
-    ${fact('<span class="pin-key start">!</span> Start', data.pickup ? esc(data.pickup) : placeText(data.start[0], data.start[1], data.start[2], data.start[3], data.start[4]))}
+    ${data.drops ? itemFacts(data) : fact('<span class="pin-key start">!</span> Start', data.pickup ? esc(data.pickup) : placeText(data.start[0], data.start[1], data.start[2], data.start[3], data.start[4]))}
     ${fact('<span class="pin-key end">?</span> End', data.turnin ? esc(data.turnin) : placeText(data.end[0], data.end[1], data.end[2], data.end[3]))}
     ${fact('Level', level > 0 ? `${level}${min ? `, from level ${min}` : ''}` : '')}
     ${fact('Side', sideOf(quest).replace('the ', '').replace(/^b/, 'B'))}

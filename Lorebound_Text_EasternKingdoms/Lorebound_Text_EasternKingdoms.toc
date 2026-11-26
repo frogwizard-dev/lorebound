@@ -2,7 +2,7 @@
 ## Title: Lorebound Text: Eastern Kingdoms
 ## Category: Frog Wizard
 ## Notes: Lorebound's quest pages for the Eastern Kingdoms, loaded only when you open one.
-## Version: 0.3.7
+## Version: 0.3.8
 ## LoadOnDemand: 1
 ## Dependencies: Lorebound
 

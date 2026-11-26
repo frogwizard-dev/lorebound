@@ -1,5 +1,14 @@
 # Lorebound
 
+## 0.3.8
+
+- **Riding has its own category**: Learning to Ride, the first-mount quests, Swift as the Wind and An Epic Ride
+  are now under Other, Riding. Starting zones like Dun Morogh no longer wait on level 40 and 60 riding quests
+  before they can be finished.
+- **Quest items on the quest page**: a quest that starts from an item shows the item (hover it for its tooltip)
+  and lists the mobs it drops from, or the chest it's found in or the vendor who sells it. The button under it is
+  now Show where it drops: the zone map with a dot on every spawn. The site's quest pages show the same.
+
 ## 0.3.7
 
 - **Fold the quest list**: click a heading in a zone's quests to fold it. Section headings like "Available now"

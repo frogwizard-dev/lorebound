@@ -1262,9 +1262,35 @@ end
 -- The quest giver on a map of the zone
 ------------------------------------------------------------------------------
 
+-- Small dots on the map's art: every spawn of what has a quest-starting item.
+local function DrawSpots(map, at, drawnW, drawnH, offsetX, offsetY)
+    map.spots = map.spots or {}
+    local shown = 0
+    for i = 1, (drawnW and #at or 0) - 1, 2 do
+        shown = shown + 1
+        local spot = map.spots[shown]
+        if not spot then
+            spot = map.art:CreateTexture(nil, "OVERLAY", nil, 1)
+            spot:SetTexture(MEDIA .. "Dot")
+            spot:SetSize(11, 11)
+            spot:SetVertexColor(1, 0.35, 0.25)
+            map.spots[shown] = spot
+        end
+        spot:ClearAllPoints()
+        spot:SetPoint("CENTER", map.art, "TOPLEFT", offsetX + drawnW * at[i] / 100, -(offsetY + drawnH * at[i + 1] / 100))
+        spot:Show()
+    end
+    for i = shown + 1, #map.spots do map.spots[i]:Hide() end
+end
+
 function Journal:ShowMap(id)
     local row = Lore.Row(id)
-    local uiMap, x, y = row and row[F.map], row and row[F.x], row and row[F.y]
+    if not row then return end
+    local details = not Lore.IsLearned(id) and ns.QuestText(id, select(2, Lore.Zone(row[F.zone]))) or {}
+    local item = details.sd
+    local at = item and item.m and item.at
+    local uiMap, x, y = row[F.map], row[F.x], row[F.y]
+    if at then uiMap = item.m end
     if not uiMap then return end
     local map = frame.map
     map.id = id
@@ -1274,14 +1300,22 @@ function Journal:ShowMap(id)
     local drawnW, drawnH, offsetX, offsetY = DrawArt(map.art, uiMap, width, height, false)
     local info = C_Map.GetMapInfo(uiMap)
     local who = row[F.starter] or "Quest giver"
-    map.title:SetText(("%s  |cff9a9a9a%s  %.1f, %.1f|r"):format(who, info and info.name or "", x, y))
+    DrawSpots(map, at or {}, drawnW, drawnH, offsetX, offsetY)
+    if at then
+        -- Where the item comes from: no one spot to send anyone, so no pin and no chat link.
+        local dropped = item.by and item.by[1] and item.by[1][1] == "Dropped by"
+        map.title:SetText(("%s  |cff9a9a9a%s in %s|r"):format(who, dropped and "drops" or "is found", info and info.name or "?"))
+    else
+        map.title:SetText(("%s  |cff9a9a9a%s  %.1f, %.1f|r"):format(who, info and info.name or "", x, y))
+    end
     map.pin:ClearAllPoints()
-    if drawnW then
+    if drawnW and not at then
         map.pin:SetPoint("CENTER", map.art, "TOPLEFT", offsetX + drawnW * x / 100, -(offsetY + drawnH * y / 100))
         map.pin:Show()
         map.pulse:Play()
     else
         map.pin:Hide()
+        map.pulse:Stop()
     end
     -- You, if you're on this map (a read of where you are; nothing set).
     local here = drawnW and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(uiMap, "player")
@@ -1306,6 +1340,8 @@ function Journal:ShowMap(id)
     if ns.GamepadUI() then
         -- A chat link can't be clicked with a controller: the map here is the way.
         map.hint:SetText(px and "The blue dot is you.  B closes." or "B closes.")
+    elseif at then
+        map.hint:SetText(px and "The blue dot is you.  Click here to close." or "Click here to close.")
     else
         map.hint:SetText("A map pin link for it is in chat: click it to set the waypoint. Click here to close.")
         ns.ShowGiver(who, uiMap, x, y)

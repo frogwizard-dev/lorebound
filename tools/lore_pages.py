@@ -324,6 +324,9 @@ def write(rows, extras, I, chain_of, shared_text=None, journal_rewards=None, sha
             kept[ui] = spots[ui][:max(0, MAX_SPOTS - total)]
             total += len(kept[ui])
         page["spots"] = {str(ui): found for ui, found in kept.items() if found}
+        drops = extras.get(qid, {}).get("drops")
+        if drops and (drops["by"] or drops["at"]):
+            page["drops"] = drops  # a quest-starting item: { item, by = [[label, names, how many]], map, at }
         with open(os.path.join(OUT, "%d.json" % qid), "w", encoding="utf-8", newline="\n") as f:
             json.dump(page, f, ensure_ascii=False, separators=(",", ":"))
         pages[qid] = page

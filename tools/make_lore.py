@@ -111,6 +111,13 @@ EK, KALIMDOR, DUNGEONS, RAIDS, CLASS, PROFESSIONS, PVP, OTHER = range(1, 9)
 # character can't finish: a quest per profession or per craftable item.
 PROFESSION_SORTS[666] = "Camping"                                   # Camping 101: one per profession
 RENAMED = {"Crafting": ("Craftsman's Writs", PROFESSIONS)}          # one writ per craftable item
+# Riding quests (level 40 and 60) get a zone of their own, so they don't hold back the starting zones they're in.
+RIDING_ZONE = "Riding"
+RIDING_NAMES = {"An Epic Ride", "Swift as the Wind"}  # some have no objective to know them by
+CONTINENT_MAPS = {1414, 1415}  # Kalimdor, Eastern Kingdoms
+RIDING_OBJECTIVE = re.compile(r"Riding skill|choose your first mount")
+# A quest-starting item's page: how many of what has it are named, and how many spawns its map shows.
+MAX_HOLDERS, MAX_DROP_SPOTS = 12, 40
 
 # Race masks: classic races' bits, plus the playable-race bits of Forever's Skyborne (race 95 is
 # bit 32, Alliance; race 96 is bit 33, Horde). Quest Completist marks both with bit 26 instead.
@@ -446,7 +453,9 @@ def write_text(pages, part_of):
     objective matches Classic's or isn't checked yet; k is true once checked; s is true when it's players' text from
     Forever instead), nt = a note, ws and we = where it's picked up and handed in (ForeverDungeonJournal's), r = {
     xp, so = some of them (gear only, choice or not unknown), ch = choose one, it = receive
-    ({ item, count, name, quality, icon }), m = money, rep = { { faction ID or name, value } }, sp = a spell } }."""
+    ({ item, count, name, quality, icon }), m = money, rep = { { faction ID or name, value } }, sp = a spell },
+    sd = where a quest-starting item comes from: { i = item ID, by = { { label, { names }, how many } }, m = uiMap,
+    at = { x, y, x, y, ... } spawns of what has it } }."""
     def text(paragraphs):
         return BLANK_LINE.join(paragraphs) if paragraphs else None
     parts = {name: [] for name in list(TEXT_PARTS.values()) + [TEXT_REST]}
@@ -470,6 +479,10 @@ def write_text(pages, part_of):
         for key, field in (("nt", "note"), ("ws", "pickup"), ("we", "turnin")):
             if page.get(field):
                 entry[key] = page[field]
+        drops = page.get("drops")
+        if drops:
+            entry["sd"] = {k: v for k, v in (("i", drops["item"]), ("by", drops["by"]), ("m", drops["map"]),
+                                             ("at", [c for point in drops["at"] or [] for c in point])) if v}
         if not entry:
             continue
         entry["k"] = page["same"] is True
@@ -680,20 +693,22 @@ def build():
         return "%s, %s and %d more" % (names[0], names[1], len(names) - 2)
 
     def item_source(item):
-        """Where a quest-starting item comes from ("Dropped by Rockjaw mobs in Dun Morogh") and a place to pin
-        for it, or (None, Nones) when the export doesn't say."""
+        """Where a quest-starting item comes from ("Dropped by Rockjaw mobs in Dun Morogh"), a place to pin for it
+        and, for its page, who has it ([[label, names, how many], ...]) and where they are ((uiMap, [[x, y], ...])):
+        Nones when the export doesn't say."""
         def rows(table, ids):
             return [table[i] for i in seq(ids) if table[i] is not None and table[i][1]]
         droppers, chests, sellers = (rows(npcs, item[ITEM_NPC_DROPS]), rows(objects, item[ITEM_OBJECT_DROPS]),
                                      rows(npcs, item[ITEM_VENDORS]))
         holders = rows(items, item[ITEM_ITEM_DROPS])
-        parts, spot = [], (None, None, None)
+        parts, spot, by, many = [], (None, None, None), [], False
         if droppers:
             names = list(dict.fromkeys(row[1] for row in droppers))
             prefix = len(names) > 2 and shared_prefix(names)
             many = len(names) > 12 and not prefix  # a world drop: no one place to send anyone
             who = prefix + " mobs" if prefix else "many mobs" if many else named(names)
             parts.append("dropped by " + who + in_zones(row[NPC_ZONE] for row in droppers))
+            by.append(["Dropped by", names[:MAX_HOLDERS], len(names)])
             for row in droppers if not many else []:
                 spot = first_spot(row[NPC_SPAWNS], row[NPC_ZONE])
                 if spot[0] is not None:
@@ -702,20 +717,51 @@ def build():
             own = [row[1] for row in chests] == [item[1]]  # the item lies about as itself (Chen's Empty Keg)
             parts.append(("picked up" if own else "found in " + named(row[1] for row in chests))
                          + in_zones(row[OBJECT_ZONE] for row in chests))
+            names = list(dict.fromkeys(row[1] for row in chests))
+            by.append(["Lies on the ground" if own else "Found in", [] if own else names[:MAX_HOLDERS], len(names)])
             for row in chests if spot[0] is None else []:
                 spot = first_spot(row[OBJECT_SPAWNS], row[OBJECT_ZONE])
                 if spot[0] is not None:
                     break
         if sellers:
             parts.append("sold by " + named(row[1] for row in sellers) + in_zones(row[NPC_ZONE] for row in sellers))
+            names = list(dict.fromkeys(row[1] for row in sellers))
+            by.append(["Sold by", names[:MAX_HOLDERS], len(names)])
             for row in sellers if spot[0] is None else []:
                 spot = first_spot(row[NPC_SPAWNS], row[NPC_ZONE])
                 if spot[0] is not None:
                     break
         if holders:
             parts.append("found in " + named(row[1] for row in holders))
+            names = list(dict.fromkeys(row[1] for row in holders))
+            by.append(["Found in", names[:MAX_HOLDERS], len(names)])
+        # Every spawn of what has it, on one zone map: the pinned spot's, else the one with the most. Not for a world
+        # drop (dots in one zone would say it drops only there), nor on a continent's map (zone coordinates).
+        found = {}
+        for row, spawns in ([(row, row[NPC_SPAWNS]) for row in (droppers if not many else [])]
+                            + [(row, row[OBJECT_SPAWNS]) for row in chests] + [(row, row[NPC_SPAWNS]) for row in sellers]):
+            for area, places in (spawns.items() if spawns is not None else []):
+                ui = zones.area_to_map.get(area)
+                for place in (seq(places) if ui and ui not in CONTINENT_MAPS else []):
+                    if place[1] and place[1] > 0:
+                        found.setdefault(ui, {})[(round(place[1], 1), round(place[2], 1))] = True
+        where = None
+        ui = spot[0] if spot[0] in found else max(found, key=lambda ui: len(found[ui]), default=None)
+        if ui:
+            points = list(found[ui])
+            step = max(1, len(points) / MAX_DROP_SPOTS)
+            where = (ui, [list(points[int(k * step)]) for k in range(min(len(points), MAX_DROP_SPOTS))])
         text = "; ".join(parts)
-        return (text[:1].upper() + text[1:] or None), spot
+        return (text[:1].upper() + text[1:] or None), spot, by or None, where
+
+    def item_drops(started):
+        """A quest-starting item's page entry: { item, by, map, at } (item_source's), or None."""
+        for i in seq(started[3]) if started is not None and not seq(started[1]) and not seq(started[2]) else []:
+            row = items[i]
+            if row is not None and row[1]:
+                _, _, by, where = item_source(row)
+                return {"item": i, "by": by, "map": where and where[0], "at": where and where[1]}
+        return None
 
     def giver(started):
         """(name, kind, faction, map, x, y, from): kind None NPC, 2 object, 3 item; faction 1 A, 2 H; from: where
@@ -729,7 +775,7 @@ def build():
                     continue
                 faction = side(started)
                 if kind == 3:
-                    source, where = item_source(row)
+                    source, where, _, _ = item_source(row)
                     return (row[1], kind, faction) + where + (source,)
                 where = first_spot(row[NPC_SPAWNS] if kind == 1 else row[OBJECT_SPAWNS])
                 return (row[1], None if kind == 1 else kind, faction) + where + (None,)
@@ -866,7 +912,8 @@ def build():
                 unplaced.add(qid)  # no zone, or one the game doesn't know: the dungeon journal may
             continue
         row = make_row(lambda field: quest[field], zone)
-        extras[qid] = {"end": giver(quest[FINISHED_BY])[3:6], "spots": spots(lambda field: quest[field])}  # for its page
+        extras[qid] = {"end": giver(quest[FINISHED_BY])[3:6], "spots": spots(lambda field: quest[field]),
+                       "drops": item_drops(quest[STARTED_BY])}  # for its page
         rows[qid] = row
         fix = horde_fix[qid]
         if fix is not None:
@@ -1195,6 +1242,19 @@ def build():
             i = I[key] + 1
             if diff.get(i) and diff[i] not in rows:
                 diff[i] = False
+
+    # Riding quests to their own zone: Learning to Ride in Dun Morogh would otherwise keep a level 10 zone from
+    # being finished until level 40, and An Epic Ride until 60.
+    riding = [qid for qid, row in rows.items()
+              if row[I["name"]] in RIDING_NAMES or RIDING_OBJECTIVE.search(row[I["objective"]] or "")]
+    if riding:
+        zones.list.append([RIDING_ZONE, OTHER, None])
+        riding_zone = len(zones.list)
+        for qid in riding:
+            rows[qid][I["zone"]] = riding_zone
+            if horde.get(qid, {}).get(I["zone"] + 1):
+                horde[qid][I["zone"] + 1] = riding_zone
+    print("riding quests in their own zone", len(riding))
 
     # Zones in the order you'd meet them: by group, then their quests' middle level.
     levels = {}
